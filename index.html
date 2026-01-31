@@ -1,8 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8"/>
   <title>Game Pure JavaScript</title>
   <style>
     * {
@@ -17,39 +16,28 @@
     }
   </style>
 </head>
-
 <body>
-  <canvas id="game" width="480" height="320"></canvas>
-  <script> 
-   const canvas = document.getElementById('game');
-   const ctx = canvas.getContext('2d'); 
-   ctx.beginPath();
-   ctx.rect(20, 40, 50, 50);
-   ctx.fillStyle = '#AF0000';
-   ctx.fill();
-   ctx.closePath();
-   ctx.beginPath();
-   ctx.arc(240, 160, 20, 0, Math.PI * 2, false);
-   ctx.fillStyle = 'red';
-   ctx.fill();
-   ctx.closePath();
-   ctx.beginPath();
-   ctx.rect(160, 10, 100, 40);
-   ctx.strokeStyle = 'rgba(0, 0, 255, 0.5)';
-   ctx.stroke();
-   ctx.closePath();
-    ctx.beginPath();
-    ctx.rect(120, 120, 80, 30);
-    ctx.fillStyle = '#0000FF';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.rect(100, 10, 25, 20)
-    ctx.fillStyle = '#00FF00'
-    ctx.fill();
-    ctx.closePath();
-    const a = 1
-
-  </script>
+<canvas id="game" width="480" height="320"></canvas>
+<script>
+ const canvas = document.getElementById('game');
+ const ctx = canvas.getContext('2d');
+ let x = canvas.width / 2;
+ let y = canvas.height / 2;
+ function draw() {
+     ctx.clearRect(0, 0, canvas.width, canvas.height);
+     ctx.beginPath();
+     ctx.arc(x, y, 10, 0, Math.PI * 2); // 
+     ctx.fillStyle = '#0095DD';
+     ctx.fill();
+     ctx.closePath();
+     x += dx;
+     y += dy;
+   
+ }
+ setInterval(draw, 10);
+ const dx = -0.1;
+ const dy =  0;
+</script>
 </body>
-
 </html>
+ 
