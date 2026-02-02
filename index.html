@@ -1,43 +1,48 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <title>Game Pure JavaScript</title>
-  <style>
-    * {
-      padding: 0;
-      margin: 0;
-    }
-
-    canvas {
-      background: #eee;
-      display: block;
-      margin: 0 auto;
-    }
-  </style>
-</head>
-<body>
-<canvas id="game" width="480" height="320"></canvas>
-<script>
- const canvas = document.getElementById('game');
- const ctx = canvas.getContext('2d');
- let x = canvas.width / 2;
- let y = canvas.height / 2;
- function draw() {
-     ctx.clearRect(0, 0, canvas.width, canvas.height);
-     ctx.beginPath();
-     ctx.arc(x, y, 10, 0, Math.PI * 2); // 
-     ctx.fillStyle = '#0095DD';
-     ctx.fill();
-     ctx.closePath();
-     x += dx;
-     y += dy;
-   
- }
- setInterval(draw, 10);
- const dx = -0.1;
- const dy =  0;
-</script>
-</body>
-</html>
+ <head> 
+ </head>
+   <meta charset="utf-8"/>
+    <title>Game Pure JavaScript</title>
+     <style>
+        canvas { background: #eee; display: block; margin: 0 auto; }
+         </style>
+         </head>
+  <body>
+    <canvas id="game" width="480" height="320"></canvas>
+    <script>
+       const canvas = document.getElementById('game');
+       const ctx = canvas.getContext('2d');
+       let x = canvas.width / 2;
+       let y = canvas.height / 2;
+       let dx = 2; // Скорость по X
+       let dy = -2; // Скорость по Y
+       const radius = 10;
+       let color = '#0095DD';
+      function getRandomColor() {
+        return '#' + Math.floor(Math.random()*16777215).toString(16);
+      }
+       function draw() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.beginPath();
+          ctx.arc(x, y, radius, 0, Math.PI * 2);
+          ctx.fillStyle = color;
+          ctx.fill();
+          ctx.closePath();
+           // Проверка столкновения со стенками
+     if (x + dx > canvas.width - radius || x + dx < radius) {
+         dx = -dx;
+         color = getRandomColor();
+     }
+     if (y + dy > canvas.height - radius || y + dy < radius) {
+         dy = -dy;
+         color = getRandomColor();
+       }
+          x += dx;
+          y += dy;
+       }
+      setInterval(draw, 10);
+      </script>
+      </body>
+      </html>
  
