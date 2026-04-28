@@ -2,425 +2,333 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <title>Unified FPS - автономный браузерный прототип</title>
+  <title>Unified FPS — Браузерный прототип</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Three.js из CDN -->
-  <script src="https://unpkg.com/three@0.152.0/build/three.min.js"></script>
-  <!-- Встроенные стили UI -->
   <style>
-    :root {
-      --bg: #0b0f1a;
-      --panel: rgba(15, 15, 20, 0.85);
-      --text: #e8e8e8;
-      --muted: #a0a0a0;
-    }
-    html, body { height: 100%; margin: 0; background: #000; color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto; }
-    #sceneContainer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-
-    /* Лобби UI */
-    #lobby {
-      position: fixed; left: 20px; top: 20px;
-      width: 320px; padding: 14px;
-      background: rgba(10,10,15,0.85);
-      border: 1px solid #333;
-      border-radius: 8px;
-      z-index: 10;
-    }
-    #lobby h2 { margin: 0 0 8px 0; font-size: 18px; }
-    #lobby label { display: block; margin-top: 8px; color: #ddd; font-size: 12px; }
-    #lobby select, #lobby button, #lobby input[type="range"] {
-      width: 100%; padding: 8px; margin-top: 6px; border-radius: 6px; border: 1px solid #555; background: #111;
-      color: #ddd;
-    }
-    #lobby .row { display: flex; gap: 6px; }
-    #lobby .row button { flex: 1; }
-
-    /* Настройки отдельные панельки (пример) */
-    #settings {
-      position: fixed; right: 20px; top: 20px;
-      width: 300px; padding: 14px;
-      background: rgba(10,10,20,0.85);
-      border: 1px solid #333;
-      border-radius: 8px;
-      z-index: 10;
-    }
-
-    #hud {
-      position: fixed; left: 12px; top: 12px; z-index: 9;
-      color: #fff; font-family: monospace; background: rgba(0,0,0,0.25); padding: 6px 10px; border-radius: 6px;
-      border: 1px solid #666;
-    }
-
-    canvas { display: block; }
-
-    @media (max-width: 800px) {
-      #lobby { width: calc(100% - 40px); left: 10px; right: 10px; }
-      #settings { width: calc(100% - 40px); right: 10px; left: 10px; }
-    }
+    body, html { margin: 0; height: 100%; background: #000; color: #fff; font-family: sans-serif; }
+    #scene { width: 100%; height: 100vh; display: block; }
+    #hud { position: fixed; top: 10px; left: 10px; padding: 8px 12px; background: rgba(0,0,0,.5); border-radius: 6px; z-index: 10; }
+    #reticle { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 16px; height: 16px; pointer-events: none; z-index: 999; }
+    #reticle:before, #reticle:after { content: ''; position: absolute; width: 2px; height: 16px; background: #fff; left: 50%; top: 0; transform: translateX(-50%); }
+    #reticle:after { transform: rotate(90deg); }
+    .panel { position: fixed; left: 10px; bottom: 10px; padding: 8px; background: rgba(0,0,0,.5); border-radius: 6px; }
+    #epicLobby { position: fixed; left: 0; top: 0; width: 100%; height: 100%; display: none; z-index: 1000; }
+    #epicLobby .bg { position: absolute; width: 100%; height: 100%; background: radial-gradient(circle at center, rgba(20,40,100,.3), rgba(0,0,0,.8)); animation: drift 30s linear infinite; }
+    @keyframes drift { from { background-position: 0 0; } to { background-position: 1000px 600px; } }
+    #epicLobby .card { position: absolute; left: 5%; top: 8%; width: 90%; max-width: 1100px; height: auto; min-height: 420px; padding: 20px; border-radius: 16px; display: grid; grid-template-columns: 1fr 360px; gap: 20px; background: rgba(0,0,0,.4); color:#fff; }
+    #epicLobby .logo { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+    #epicLobby .players { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; align-content: start; padding: 8px; max-height: 260px; overflow: auto; }
+    .playerCard { display: flex; align-items: center; padding: 8px; background: rgba(0,0,0,.25); border-radius: 8px; border: 1px solid rgba(255,255,255,.15); }
+    .avatar { width: 40px; height: 40px; border-radius: 50%; background: #888; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; color: #fff; margin-right: 8px; }
+    .status { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-left: auto; }
+    .ready { background: #4ade80; }
+    .notready { background: #f87171; }
+    #epicLobby .panelActions { display: flex; flex-direction: column; gap: 8px; padding: 8px; }
+    #epicLobby button { padding: 10px 14px; border-radius: 8px; border: none; background: #1e3a8a; color: #fff; cursor: pointer; font-weight: bold; }
+    #epicLobby select, #epicLobby input, #epicLobby button { font-family: inherit; }
   </style>
 </head>
 <body>
-  <!-- Контейнер сцены -->
-  <div id="sceneContainer"></div>
+  <div id="hud">HP: <span id="playerHP">100</span> | Очки: <span id="score">0</span></div>
+  <div id="reticle"></div>
+  <canvas id="scene"></canvas>
 
-  <!-- Лобби UI -->
-  <div id="lobby">
-    <h2>Лобби</h2>
-    <label>Режим матча</label>
-    <select id="modeSelect">
-      <option value="OneToOne">1 на 1</option>
-      <option value="FFA">Каждый сам за себя (FFA)</option>
-    </select>
+  <!-- Invite panel -->
+  <div class="panel" style="left:10px; bottom: 120px;">
+    <label>Invite by ID</label><input id="inviteId" type="text" placeholder="Friend ID" style="width:180px;"/><br/>
+    <button id="copyInviteBtn" style="margin-top:6px;">Copy Invite Link</button>
+  </div>
 
-    <div class="row" style="margin-top:10px;">
-      <button id="startBtn">Начать матч</button>
+  <!-- Settings & control panel -->
+  <div class="panel" style="left:10px; bottom: 60px;">
+    Чувствительность: <span id="sensVal">1.0</span><br/>
+    <input id="sens" type="range" min="0.5" max="4" step="0.1" value="1">
+  </div>
+
+  <!-- Epic lobby (красивый режим лобби) -->
+  <div id="epicLobby">
+    <div class="bg"></div>
+    <div class="card">
+      <div>
+        <div class="logo">UNIFIED FPS ARENA</div>
+        <div class="players" id="lobbyLeft" style="grid-template-columns: repeat(auto-fill, minmax(120px,1fr));"></div>
+      </div>
+      <div class="panelActions" id="lobbyRight">
+        <label>Режим</label>
+        <select id="epicMode">
+          <option value="coop">Coop</option>
+          <option value="versus">Versus</option>
+          <option value="training">Training</option>
+        </select>
+
+        <!-- Team selection -->
+        <label>Команда</label>
+        <select id="epicTeam">
+          <option value="0">Special Forces</option>
+          <option value="1">Terrorists</option>
+        </select>
+
+        <!-- Training specifics -->
+        <div id="epicTraining" style="display:none;">
+          <label>Сложность ботов</label>
+          <select id="epicTrainingDiff">
+            <option value="0">Easy</option>
+            <option value="1">Medium</option>
+            <option value="2">Hard</option>
+          </select>
+          <button id="epicTrainingStart" style="margin-top:6px;">Start Training</button>
+        </div>
+
+        <button id="epicStart" style="margin-top:8px;">Start Match</button>
+        <button id="epicShare" style="margin-top:6px;">Copy Invite Link</button>
+      </div>
     </div>
-
-    <hr style="border:none; height:1px; background:#333; margin:12px 0;">
-    <label>Друзья (локально):</label>
-    <ul id="friends" style="max-height:120px; overflow:auto; padding-left:18px; margin:6px 0 6px;"></ul>
   </div>
 
-  <!-- Настройки -->
-  <div id="settings">
-    <h2 style="font-size:15px; margin:0 0 8px 0;">Настройки</h2>
-    <label>Чувствительность мыши: <span id="sensVal"></span></label>
-    <input id="sens" type="range" min="0.5" max="4" step="0.1" value="1.0" />
-
-    <label style="margin-top:8px;">Громкость звука: <span id="volVal"></span></label>
-    <input id="vol" type="range" min="0" max="1" step="0.01" value="1" />
-  </div>
-
-  <!-- HUD: счет и индикаторы -->
-  <div id="hud" style="display:none;">
-    Очки: <span id="score">0</span> | Фраги: <span id="frags">0</span> | Смерти: <span id="deaths">0</span>
-  </div>
-
+  <script src="https://unpkg.com/three@0.152.0/build/three.min.js"></script>
   <script>
-  // Базовый автономный браузерный прототип FPS на Three.js
-  // План A: локальная демо без сервера. Ввод: мышь/клавиша, режим лобби, оружие и Raycast.
-  let scene, camera, renderer;
-  let ground, ambient, dirLight;
-  let player, weapon;
-  let bots = [];
-  let clock = new THREE.Clock();
-  let keyState = {};
+    // Global variables
+    let scene, camera, renderer;
+    let player, ground;
+    let keys = {};
+    let score = 0;
+    let enemies = [];
 
-  // Управление камерой (мышь)
-  let yaw = 0;
-  let pitch = 0;
-  let sensitivity = 1.0;
+    let standingY = 1.8, crouchY = 1.0;
+    let raycaster = new THREE.Raycaster();
 
-  // Raycast
-  const raycaster = new THREE.Raycaster();
-  const mouse = new THREE.Vector2();
+    let weaponGroup;
+    let isInspecting = false;
+    let recoil = 0;
+    const standingPose = { pos: new THREE.Vector3(0.6, -0.15, -0.8), rotX: 0 };
+    const inspectPose  = { pos: new THREE.Vector3(0.0, -0.18, -0.4), rotX: -0.6 };
 
-  // Лобби/UI
-  const modeSelect = document.getElementById('modeSelect');
-  const startBtn = document.getElementById('startBtn');
-  const scoreEl = document.getElementById('score');
-  const hud = document.getElementById('hud');
-  const sensSlider = document.getElementById('sens');
-  const volSlider = document.getElementById('vol');
-  const sensVal = document.getElementById('sensVal');
-  const volVal = document.getElementById('volVal');
-  const friendsList = document.getElementById('friends');
-  const settingsDiv = document.getElementById('settings');
+    const clock = new THREE.Clock();
+    // Zoom & ID
+    let baseFov = 75;
+    let zoomFov = 56.25;
+    let isZooming = false;
+    let userId = localStorage.getItem('fps_user_id');
+    if (!userId) { userId = 'ID-' + Math.random().toString(36).slice(2,6) + '-' + Date.now().toString(36); localStorage.setItem('fps_user_id', userId); }
 
-  // Настройки по памяти
-  function loadSettings(){
-    const s = localStorage.getItem('fps_sens');
-    if (s) sensitivity = parseFloat(s);
-    const v = localStorage.getItem('fps_vol');
-    if (v) {
-      volSlider.value = v;
-      // здесь можно регулировать реальный аудио контекст
-    }
-    sensSlider.value = sensitivity;
-    sensVal.textContent = sensitivity.toFixed(2);
-    volVal.textContent = (parseFloat(volSlider.value)).toFixed(2);
-  }
-  function saveSettings(){
-    localStorage.setItem('fps_sens', sensitivity);
-    localStorage.setItem('fps_vol', volSlider.value);
-  }
+    // Training bot state
+    let trainingBots = [];
+    let trainingActive = false;
+    let playerHP = 100;
+    let playerTeam = 0; // 0 SF by default
 
-  // Инициализация сцены
-  function initScene(){
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x202025);
+    // Init scene (Three.js)
+    function init(){
+      const canvas = document.getElementById('scene');
+      renderer = new THREE.WebGLRenderer({canvas, antialias: true});
+      resize();
+      window.addEventListener('resize', resize);
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x111522);
 
-    camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 1000);
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      player = new THREE.Object3D();
+      scene.add(player);
+      player.add(camera);
+      camera.position.y = standingY;
 
-    renderer = new THREE.WebGLRenderer({antialias: true});
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.getElementById('sceneContainer').appendChild(renderer.domElement);
+      // ground & walls
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({color:0x2a2a2a}));
+      floor.rotation.x = -Math.PI/2; scene.add(floor);
+      const wall1 = new THREE.Mesh(new THREE.BoxGeometry(60, 6, 0.5), new THREE.MeshStandardMaterial({color:0x444444})); wall1.position.set(0,3,-30); scene.add(wall1);
+      const wall2 = wall1.clone(); wall2.position.set(-30,3,0); wall2.rotation.y = Math.PI/2; scene.add(wall2);
 
-    // Освещение
-    ambient = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambient);
-    dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight.position.set(5, 10, 7);
-    scene.add(dirLight);
+      // weapon (realistic look)
+      weaponGroup = new THREE.Group(); camera.add(weaponGroup);
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.9,0.25,0.25), new THREE.MeshStandardMaterial({color:0x555555}));
+      body.position.set(0.0, -0.2, -0.35);
+      const barrel = new THREE.Mesh(new THREE.BoxGeometry(1.0,0.15,0.5), new THREE.MeshStandardMaterial({color:0x333333}));
+      barrel.position.set(0.65, -0.2, -0.6);
+      const mag = new THREE.Mesh(new THREE.BoxGeometry(0.25,0.4,0.25), new THREE.MeshStandardMaterial({color:0x444444}));
+      mag.position.set(-0.25, -0.05, -0.23);
+      const grip = new THREE.Mesh(new THREE.BoxGeometry(0.25,0.5,0.25), new THREE.MeshStandardMaterial({color:0x666666}));
+      grip.position.set(-0.6, -0.05, -0.15);
+      weaponGroup.add(body, barrel, mag, grip);
+      weaponGroup.position.set(0.6, -0.15, -0.8);
 
-    // Пол и стены
-    const floorGeometry = new THREE.PlaneGeometry(100, 100);
-    const floorMaterial = new THREE.MeshStandardMaterial({color: 0x2b2b2b});
-    ground = new THREE.Mesh(floorGeometry, floorMaterial);
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = 0;
-    scene.add(ground);
+      // bots (for training) - if training mode is activated, bots will be shown
+      // Build basic bots only when training starts
 
-    // Граница (рамка)
-    const grid = new THREE.GridHelper(100, 40, 0x444444, 0x444444);
-    scene.add(grid);
+      // lights
+      const al = new THREE.AmbientLight(0xffffff,0.6); scene.add(al);
+      const dl = new THREE.DirectionalLight(0xffffff,0.8); dl.position.set(5,10,7); scene.add(dl);
 
-    // Игрок — невидимый цилиндр/коробка как "касса" на земле (для позиционирования)
-    player = new THREE.Object3D();
-    player.position.set(0, 1.6, 0);
-    scene.add(player);
+      // pointer lock
+      document.body.addEventListener('click', ()=>{ renderer.domElement.requestPointerLock(); }, false);
+      document.addEventListener('pointerlockchange', ()=>{}, false);
 
-    // Оружие — простой цилиндр/бокс, привязанный к камере
-    const gunGeo = new THREE.BoxGeometry(0.3, 0.15, 1);
-    const gunMat = new THREE.MeshStandardMaterial({color: 0x555555});
-    const gun = new THREE.Mesh(gunGeo, gunMat);
-    gun.name = 'gun';
-    gun.position.set(0.4, -0.1, -0.6);
-    camera.add(gun);
-    weapon = gun; // держим ссылку, но камера будет в позиции игрока
-  }
+      // controls
+      window.addEventListener('keydown', (e)=>{ keys[e.code] = true; if(e.code==='KeyI'){ isInspecting = !isInspecting; } }, false);
+      window.addEventListener('keyup', (e)=>{ keys[e.code] = false; }, false);
 
-  // Управление клавишами
-  function bindKeys(){
-    window.addEventListener('keydown', (e) => { keyState[e.code] = true; }, false);
-    window.addEventListener('keyup', (e) => { keyState[e.code] = false; }, false);
-  }
+      // mouse look
+      let yaw=0, pitch=0;
+      document.addEventListener('mousemove', (e)=>{
+        if (document.pointerLockElement !== renderer.domElement) return;
+        yaw -= e.movementX * 0.0025;
+        pitch -= e.movementY * 0.0025;
+        pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+        player.rotation.y = yaw;
+        camera.rotation.x = pitch;
+      });
 
-  // Управление мышью (пойнтер-лока)
-  let isPointerLocked = false;
-  function setupPointerLock(){
-    const canvas = renderer.domElement;
-    canvas.addEventListener('click', () => {
-      canvas.requestPointerLock();
-    }, false);
+      // right-click zoom
+      document.addEventListener('contextmenu', (e)=>{ e.preventDefault(); isZooming = true; });
+      document.addEventListener('mousedown', (e)=>{ if (e.button===2) isZooming = true; }, false);
+      document.addEventListener('mouseup', (e)=>{ if (e.button===2) isZooming = false; }, false);
 
-    document.addEventListener('pointerlockchange', () => {
-      isPointerLocked = document.pointerLockElement === canvas;
-      if (isPointerLocked) {
-        // скрыть курсор
-      }
-    }, false);
+      // settings
+      document.getElementById('sens').addEventListener('input', (ev)=>{ document.getElementById('sensVal').textContent = ev.target.value; });
+      document.getElementById('sens').value = 1; document.getElementById('sensVal').textContent = '1.0';
+      document.getElementById('sens').addEventListener('change', ()=>{ localStorage.setItem('fps_sens', document.getElementById('sens').value); });
 
-    document.addEventListener('mousemove', (e) => {
-      if (!isPointerLocked) return;
-      yaw -= e.movementX * 0.002 * sensitivity;
-      pitch -= e.movementY * 0.002 * sensitivity;
-      pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
-      // вращаем камеру вокруг себя
-      camera.rotation.x = pitch;
-      // yaw на уровне родительского объекта
-      player.rotation.y = yaw;
-    }, false);
-  }
+      // Training UI actions
+      const epicMode = document.getElementById('epicMode');
+      const epicTraining = document.getElementById('epicTraining');
+      if (epicMode){ epicMode.addEventListener('change', ()=>{ 
+        const m = epicMode.value;
+        document.getElementById('epicTraining').style.display = (m==='training')? 'block' : 'none';
+      }); }
 
-  // Спавны
-  const spawnPoints = [
-    new THREE.Vector3( -10, 0, -10 ),
-    new THREE.Vector3( 10, 0, -10 ),
-    new THREE.Vector3( -10, 0, 10 ),
-    new THREE.Vector3( 10, 0, 10 )
-  ];
-
-  // Игроки-боты (простые меши)
-  function createBot(pos, color=0xff0000){
-    const botG = new THREE.BoxGeometry(1, 1, 1.5);
-    const botM = new THREE.MeshStandardMaterial({color: color});
-    const bot = new THREE.Mesh(botG, botM);
-    bot.position.copy(pos);
-    bot.userData = { type: 'bot', health: 100, alive: true };
-    scene.add(bot);
-    bots.push(bot);
-    return bot;
-  }
-
-  // Стрельба
-  function shoot(){
-    // muzzle position идёт от камеры (weapon.position + camera.direction)
-    const origin = new THREE.Vector3();
-    origin.copy(camera.position);
-    // направление вперёд камеры
-    const dir = new THREE.Vector3(0, 0, -1);
-    dir.applyQuaternion(camera.quaternion);
-    dir.normalize();
-
-    raycaster.set(origin, dir);
-    const hits = raycaster.intersectObjects(bots, true);
-    if (hits.length > 0){
-      const hit = hits[0].object;
-      // уменьшаем здоровье бота
-      if (hit.userData && hit.userData.health !== undefined){
-        hit.userData.health -= 25;
-        if (hit.userData.health <= 0){
-          // удаляем бота и засчитываем очко
-          scene.remove(hit);
-          bots = bots.filter(b => b !== hit);
-          // просто инкремент счета игрока
-          scoreEl.dataset.kills = (Number(scoreEl.dataset.kills || 0) + 1);
-          updateScoreUI();
+      const epicTrainingDiff = document.getElementById('epicTrainingDiff');
+      document.getElementById('epicTrainingStart')?.addEventListener('click', ()=> {
+        if (epicTrainingDiff){
+          const diff = Number(epicTrainingDiff.value) || 0;
+          // simple client-side training start
+          startTraining(diff);
         }
+      });
+
+      // Start match (coop/versus)
+      document.getElementById('epicStart').addEventListener('click', ()=> {
+        // If mode is training, training will be started via separate button
+        // For now just reset world
+        stopTraining();
+      });
+
+      // Copy invite link
+      document.getElementById('epicShare').addEventListener('click', ()=> {
+        const link = location.origin + location.pathname + '?player=' + encodeURIComponent(userId);
+        navigator.clipboard.writeText(link);
+      });
+
+      // Invite link copy
+      document.getElementById('copyInviteBtn').addEventListener('click', ()=> {
+        const id = document.getElementById('inviteId').value || userId;
+        const link = location.origin + location.pathname + '?player=' + encodeURIComponent(id);
+        navigator.clipboard.writeText(link);
+      });
+    }
+
+    function resize(){ if (renderer) { const w=window.innerWidth, h=window.innerHeight; renderer.setSize(w,h); camera.aspect = w/h; camera.updateProjectionMatrix(); } }
+
+    // Simple training logic (client-side)
+    function startTraining(diff){
+      // diff: 0 Easy, 1 Medium, 2 Hard
+      trainingActive = true;
+      playerHP = 100;
+      updateHud();
+      // spawn bots if not exists
+      spawnBotModelForTraining( diff );
+    }
+
+    function stopTraining(){
+      trainingActive = false;
+      // remove bots
+      trainingBots.forEach(b=> scene.remove(b));
+      trainingBots.length = 0;
+    }
+
+    // Create a basic bot model (utility)
+    function spawnBotModelForTraining(diff){
+      // ensure any existing bots cleared
+      trainingBots.forEach(b=> scene.remove(b));
+      trainingBots.length = 0;
+      const colors = [0xff5555, 0x55ff55, 0x5555ff];
+      const pts = [ new THREE.Vector3(-6,0,-6), new THREE.Vector3(6,0,-6), new THREE.Vector3(0,0,6) ];
+      // simple model: color by difficulty
+      for (let i=0; i<pts.length; i++){
+        const bot = createCharacterModel(0);
+        bot.position.copy(pts[i]);
+        bot.userData = {
+          hp: diff===0?60: diff===1?100:150,
+          speed: diff===0?1.4: diff===1?2.0:3.0,
+          alive:true,
+          team: 0
+        };
+        const mat = new THREE.MeshStandardMaterial({ color: colors[diff] });
+        bot.traverse((child) => {
+          if (child.isMesh) child.material = mat;
+        });
+        scene.add(bot);
+        trainingBots.push(bot);
       }
-    } else {
-      // можно добавить эффект попадания по атмосфере
     }
 
-    // простая вспышка Médio
-    flashMuzzle();
-  }
+    // Create SF/TS model helper (used for bots and players)
+    function createCharacterModel(team){
+      const group = new THREE.Group();
+      const colorA = team === 0 ? 0x2b6bd3 : 0x8b0000;
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.0, 0.32), new THREE.MeshStandardMaterial({ color: colorA })); torso.position.y = 0.5; group.add(torso);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8), new THREE.MeshStandardMaterial({ color: 0xffe0c8 })); head.position.y = 1.15; group.add(head);
+      const helmet = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.25, 0.75), new THREE.MeshStandardMaterial({ color: 0x111111 })); helmet.position.y = 1.38; group.add(helmet);
 
-  function flashMuzzle(){
-    // быстрый белый флэш у дула
-    const flash = new THREE.Mesh(
-      new THREE.SphereGeometry(0.08, 8, 8),
-      new THREE.MeshBasicMaterial({color: 0xffffff})
-    );
-    flash.position.copy(weapon.getWorldPosition(new THREE.Vector3()));
-    flash.position.add(camera.getWorldDirection(new THREE.Vector3()).clone().multiplyScalar(0.8));
-    scene.add(flash);
-    const t = gsap.to ? gsap.to(flash.scale, {x:2, y:2, z:2, duration:0.06}) : null;
-    setTimeout(()=> scene.remove(flash), 60);
-  }
+      const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,0.8), new THREE.MeshStandardMaterial({ color: colorA })); armL.rotation.z = Math.PI/2; armL.position.set(-0.65,0.75,0);
+      const armR = armL.clone(); armR.position.x = 0.65;
+      const legL = new THREE.Mesh(new THREE.BoxGeometry(0.25,0.9,0.25), new THREE.MeshStandardMaterial({ color: 0x333333 })); legL.position.set(-0.18,-0.05,0);
+      const legR = legL.clone(); legR.position.x = 0.18;
 
-  // Инициализация сцены и старт матча
-  let gameStarted = false;
-  let gsapLoaded = false;
-  function startMatch(){
-    // очистить старые объекты
-    bots.forEach(b => scene.remove(b));
-    bots = [];
-
-    // Загрузить пары ботов в режим 1v1 или FFA
-    const mode = modeSelect.value;
-    if (mode === 'OneToOne'){
-      // 1v1: один бот
-      createBot(spawnPoints[2], 0xff4444);
-    } else {
-      // FFA: несколько ботов
-      createBot(spawnPoints[0], 0xff4444);
-      createBot(spawnPoints[1], 0x44ff44);
-      createBot(spawnPoints[3], 0x4444ff);
+      group.add(armL, armR, legL, legR);
+      group.userData = { team };
+      return group;
     }
 
-    // начальные позиции игрока
-    const startPos = spawnPoints[0].clone();
-    player.position.set(startPos.x, startPos.y + 0.1, startPos.z);
-    camera.position.set(0, 0, 0);
-    yaw = 0; pitch = 0;
+    // Bot AI & training update
+    function updateTraining(dt){
+      if (!trainingActive) return;
+      // move bots towards player
+      const playerPos = new THREE.Vector3();
+      camera.getWorldPosition(playerPos);
+      trainingBots.forEach(bot => {
+        if (!bot.userData.alive) return;
+        const dir = new THREE.Vector3().subVectors(playerPos, bot.position).normalize();
+        bot.position.add(dir.multiplyScalar(bot.userData.speed * dt));
+        // bot shooting if close
+        if (bot.position.distanceTo(playerPos) < 6){
+          playerHP -= (dt * (Math.random()*2 + 1) ); // простой урон
+          if (playerHP <= 0){
+            playerHP = 0; trainingActive = false; alert('Training Over: You died!');
+          }
+          updateHud();
+        }
+      });
+    }
 
-    hud.style.display = 'block';
-    scoreEl.textContent = 0;
-    hud.style.display = 'block';
-    gameStarted = true;
-  }
+    function updateHud(){
+      const scoreEl = document.getElementById('score');
+      document.getElementById('playerHP').textContent = Math.floor(playerHP);
+      if (scoreEl) scoreEl.textContent = score;
+    }
 
-  function updateScoreUI(){
-    const kills = Number(scoreEl.dataset.kills || 0);
-    scoreEl.textContent = hitsToScore(kills);
-  }
-  function hitsToScore(n){ return n; }
+    // Core loop (two modes)
+    function coreLoop(){
+      const dt = clock.getDelta();
+      update(dt);
+      updateTraining(dt);
+      requestAnimationFrame(coreLoop);
+    }
 
-  // Основной цикл
-  function animate(){
-    requestAnimationFrame(animate);
-    const dt = clock.getDelta();
-    if (!gameStarted) return renderer.render(scene, camera);
-
-    // Простая физика ходьбы игрока
-    const speed = 5;
-    const forward = new THREE.Vector3();
-    camera.getWorldDirection(forward);
-    forward.y = 0;
-    forward.normalize();
-    const right = new THREE.Vector3();
-    right.crossVectors(new THREE.Vector3(0,1,0), forward);
-
-    let moveDir = new THREE.Vector3(0,0,0);
-    if (keyState['KeyW']) moveDir.add(forward);
-    if (keyState['KeyS']) moveDir.sub(forward);
-    if (keyState['KeyA']) moveDir.sub(right);
-    if (keyState['KeyD']) moveDir.add(right);
-    moveDir.normalize();
-    player.position.add(moveDir.multiplyScalar(speed * dt));
-    // camera/scene follow
-    camera.position.set(0, 0, 0);
-
-    // bots: простая AI-логика перемещения к рандомной точке
-    bots.forEach((b) => {
-      if (!b.userData.alive && b.parent) return;
-      const t = Date.now() * 0.001;
-      // простой паттерн: медленно плыть по сцене
-      b.position.x += Math.sin(t + b.id) * 0.01;
-      b.position.z += Math.cos(t + b.id) * 0.01;
-      // простая атака по игроку
-    });
-
-    renderer.render(scene, camera);
-  }
-
-  // Вычисление инициализации
-  function init(){
-    // Лобби/настройки
-    loadSettings();
-    // Сцена
-    initScene();
-    bindKeys();
-    setupPointerLock();
-    // добавим обработчик стрелялки
-    window.addEventListener('mousedown', (e) => {
-      if (isPointerLocked) shoot();
-    });
-
-    // Начало игры
-    startBtn.addEventListener('click', () => {
-      // запускаем матч
-      startMatch();
-      // показываем HUD
-    });
-
-    // Подсветка сенситивити/vol
-    sensSlider.addEventListener('input', () => {
-      sensitivity = parseFloat(sensSlider.value);
-      sensVal.textContent = sensitivity.toFixed(2);
-      saveSettings();
-    });
-    volSlider.addEventListener('input', () => {
-      volVal.textContent = parseFloat(volSlider.value).toFixed(2);
-      saveSettings();
-    });
-
-    // Демонстрация друзей (локально)
-    addFriend('Alex');
-    addFriend('Nika');
-  }
-
-  function addFriend(nick){
-    const li = document.createElement('li');
-    li.textContent = nick;
-    friendsList.appendChild(li);
-  }
-
-  // Пуск
-  init();
-  animate();
-
-  // Адаптация под изменение размера окна
-  window.addEventListener('resize', () => {
-    if (!renderer) return;
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-  });
-
-  // Приведём к стартапу: начни смотреть в браузере.
+    // Start the program
+    // We'll auto-start a simple scene with weapons
+    </script>
+  <script src="https://unpkg.com/three@0.152.0/build/three.min.js"></script>
+  <script>
+    // простые каркасные вызовы для запуска
   </script>
-</body>
+  </body>
 </html>
