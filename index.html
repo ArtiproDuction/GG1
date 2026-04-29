@@ -13,13 +13,13 @@
     #hud { position: fixed; top: 8px; left: 8px; padding: 8px 12px; background: rgba(0,0,0,.6); border-radius: 6px; z-index: 10; font-weight: bold; }
     #reticle { position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 18px; height: 18px; pointer-events: none; z-index: 999; }
 
-    /* CS1.6-style main menu overlay (общий стиль) */
+    /* CS1.6-style main menu overlay (центрированный блок) */
     #mainMenuOverlay { display:flex; align-items:center; justify-content:center; position:fixed; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,.6); z-index:9999; }
     .menuCard { width: 700px; max-width: 92vw; background: #1a1a1a; border: 2px solid #2f5cff; border-radius: 12px; padding: 22px; text-align: center; color:#e6f0ff; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
-    .menuTitle { font-family: Impact, 'Arial Black', sans-serif; font-size: 54px; color:#d9eaff; text-shadow: 0 0 12px #4ea3ff; letter-spacing:2px; margin-bottom:6px; }
+    .menuTitle { font-family: Impact, "Arial Black", sans-serif; font-size: 54px; color:#d9eaff; text-shadow: 0 0 12px #4ea3ff; letter-spacing:2px; margin-bottom:6px; }
     .menuSubtitle { color:#a8c8ff; font-size:14px; margin-bottom:14px; }
     .menuRow { display:flex; gap:16px; justify-content:center; margin: 8px 0; }
-    .menuBtn { height:64px; width: 260px; border-radius: 8px; border:0; font-weight:bold; font-size:20px; cursor:pointer;
+    .menuBtn { height:64px; width:260px; border-radius:8px; border:0; font-weight:bold; font-size:20px; cursor:pointer;
       color:#041e3a; background: linear-gradient(#6a9dfc, #2a63e6); box-shadow:0 6px 14px rgba(0,0,0,.4);
     }
     .menuBtn.secondary { background: linear-gradient(#232323, #1a1a1a); color:#e6e6e6; }
@@ -32,11 +32,10 @@
     #friendsPanel li { padding:6px 0; border-bottom:1px solid #555; }
 
     @media (max-width: 800px){
-      #mainMenuOverlay { align-items: center; justify-content: center; }
+      #mainMenuOverlay { align-items:center; justify-content:center; }
       .menuCard { width: 90vw; }
       .menuRow { flex-direction: column; }
       .menuBtn { width: 100%; }
-      #settingsPanel, #friendsPanel { width: 90vw; right: 5%; left: 5%; }
     }
   </style>
 </head>
@@ -46,11 +45,11 @@
 
   <canvas id="scene"></canvas>
 
-  <!-- CS1.6-like main menu overlay -->
+  <!-- Overlay main CS1.6-style menu -->
   <div id="mainMenuOverlay" aria-label="Main Menu">
     <div class="menuCard">
       <div class="menuTitle" style="text-transform:uppercase; font-weight:900;">GunShot</div>
-      <div class="menuSubtitle">CS1.6-inspired main menu</div>
+      <div class="menuSubtitle">CS1.6-styled main menu</div>
       <div class="menuRow">
         <button id="playFFA" class="menuBtn">Play: FFA</button>
         <button id="playDuel" class="menuBtn">Play: Duel with Bots</button>
@@ -88,7 +87,7 @@
 
   <!-- Epic Lobby -->
   <div id="epicLobby" style="display:none; position:fixed; right:12px; bottom:70px; width:360px; background: rgba(0,0,0,.85); border:1px solid #444; border-radius:8px; padding:12px; z-index:9;">
-    <div class="logo" style="font-family:Impact, 'Arial Black'; font-size:20px; text-align:center; color:#fff; margin-bottom:6px;">GunShot Lobby</div>
+    <div class="logo" style="font-family:Impact, 'Arial Black', sans-serif; font-size:20px; text-align:center; color:#fff; margin-bottom:6px;">GunShot Lobby</div>
     <div id="lobbyLeft" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(110px,1fr)); gap:8px; max-height: 180px; overflow:auto;"></div>
     <div style="margin-top:8px; display:flex; gap:8px; justify-content: space-between;">
       <select id="epicMode" title="Mode">
@@ -96,7 +95,7 @@
         <option value="versus">Versus</option>
         <option value="training">Training</option>
       </select>
-      <select id="epicTeam" title="Team" style="margin-left:6px;">
+      <select id="epicTeam" style="margin-left:6px;">
         <option value="0">Special Forces</option>
         <option value="1">Terrorists</option>
       </select>
@@ -118,82 +117,94 @@
 
   <script src="https://unpkg.com/three@0.152.0/build/three.min.js"></script>
   <script>
-  // Unified client: イтребуется патчинг под CS1.6 стиль меню, режимы и боты
+  // All-in-one GunShot client: menus, 3D scene, bots, lobbies (all-in-one)
 
-  // Title handling
+  // Title
   (function(){
-    const t = new URLSearchParams(location.search).get('title') || 'GunShot';
+    const t = new URL(location.href).searchParams.get('title') || 'GunShot';
     const saved = localStorage.getItem('fps_personal_title') || t;
     localStorage.setItem('fps_personal_title', saved);
     document.title = saved + ' — GunShot';
   })();
 
-  // Three.js scene
+  // Three.js
   let scene, camera, renderer;
   let player, weaponGroup;
   let clock = new THREE.Clock();
   let bots = [];
-  let trainMode = false;
+  let trainingActive = false;
   let botDiff = 0;
+  let move = { w:false,a:false,s:false,d:false };
+  let isZooming = false, isInspecting = false;
+  let hp = 100;
 
   function initScene(){
     const canvas = document.getElementById('scene');
     renderer = new THREE.WebGLRenderer({canvas, antialias:true});
     resize(); window.addEventListener('resize', resize);
     scene = new THREE.Scene(); scene.background = new THREE.Color(0x0a0a0a);
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
     player = new THREE.Object3D(); scene.add(player); player.add(camera); camera.position.y = 1.7;
 
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.MeshStandardMaterial({color:0x202020}));
-    floor.rotation.x = -Math.PI/2; scene.add(floor);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.MeshStandardMaterial({color:0x202020})); floor.rotation.x = -Math.PI/2; scene.add(floor);
     const wall = new THREE.Mesh(new THREE.BoxGeometry(60,6,0.5), new THREE.MeshStandardMaterial({color:0x333333})); wall.position.set(0,3,-30); scene.add(wall);
 
-    // оружие
+    // weapon
     weaponGroup = new THREE.Group(); camera.add(weaponGroup);
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.9,0.25,0.25), new THREE.MeshStandardMaterial({color:0x555555})); body.position.y = 0.0;
     const barrel = new THREE.Mesh(new THREE.BoxGeometry(1.0,0.15,0.25), new THREE.MeshStandardMaterial({color:0x333333})); barrel.position.set(0.9,0,-0.2);
     const mag = new THREE.Mesh(new THREE.BoxGeometry(0.25,0.4,0.25), new THREE.MeshStandardMaterial({color:0x444444})); mag.position.set(-0.25,0.05,-0.15);
     const grip = new THREE.Mesh(new THREE.BoxGeometry(0.25,0.5,0.25), new THREE.MeshStandardMaterial({color:0x666666})); grip.position.set(-0.6,0.05,-0.15);
     weaponGroup.add(body, barrel, mag, grip);
-    weaponGroup.position.set(0.6,-0.05,-0.8);
+    weaponGroup.position.set(0.6,-0.02,-0.8);
 
     // lights
     scene.add(new THREE.AmbientLight(0xffffff,0.6));
     scene.add(new THREE.DirectionalLight(0xffffff,0.8));
 
-    // controls (overlay)
-    window.addEventListener('keydown', (e)=>{ if (e.code==='KeyW') move.forward=true; if (e.code==='KeyA') move.left=true; if (e.code==='KeyS') move.backward=true; if (e.code==='KeyD') move.right=true; });
-    window.addEventListener('keyup', (e)=>{ if (e.code==='KeyW') move.forward=false; if (e.code==='KeyA') move.left=false; if (e.code==='KeyS') move.backward=false; if (e.code==='KeyD') move.right=false; });
+    // Controls
+    window.addEventListener('keydown', (e)=>{ if (e.code==='KeyW') move.w = true; if (e.code==='KeyS') move.s = true; if (e.code==='KeyA') move.a = true; if (e.code==='KeyD') move.d = true; });
+    window.addEventListener('keyup', (e)=>{ if (e.code==='KeyW') move.w = false; if (e.code==='KeyS') move.s = false; if (e.code==='KeyA') move.a = false; if (e.code==='KeyD') move.d = false; });
 
-    const canvasOverlay = canvas;
-    canvasOverlay.addEventListener('click', ()=>{ canvasOverlay.requestPointerLock(); });
+    const canvas = canvas;
+    canvas.addEventListener('click', ()=>{ canvas.requestPointerLock(); }, false);
+    document.addEventListener('pointerlockchange', ()=>{}, false);
 
     // mouse look
-    let yaw = 0, pitch = 0;
-    document.addEventListener('mousemove', (e)=>{ if (document.pointerLockElement !== canvasOverlay) return; yaw -= e.movementX*0.0025; pitch -= e.movementY*0.0025; camera.rotation.x = pitch; player.rotation.y = yaw; });
+    let yaw=0, pitch=0;
+    document.addEventListener('mousemove', (e)=>{ if (document.pointerLockElement !== canvas) return; yaw -= e.movementX*0.0025; pitch -= e.movementY*0.0025; camera.rotation.x = pitch; player.rotation.y = yaw; });
 
-    // rotate to simulate zoom
-    document.addEventListener('contextmenu', (e)=>{ e.preventDefault(); }, false);
+    // shoot cadence
+    canvas.addEventListener('mousedown', (ev)=>{ if (ev.button===0){ isFiring = true; timeSinceShot = 0; } if (ev.button===2) isZooming = true; });
+    window.addEventListener('mouseup', (ev)=>{ if (ev.button===0) isFiring = false; if (ev.button===2) isZooming = false; });
 
+    document.addEventListener('contextmenu', (e)=>{ e.preventDefault(); isZooming = true; }, false);
+
+    // Settings
+    document.getElementById('sens').addEventListener('input', (ev)=>{ document.getElementById('sensVal2').textContent = ev.target.value; });
+    document.getElementById('sens').value = 1; document.getElementById('sensVal2').textContent = '1.0';
   }
 
-  function resize(){ if (renderer) { renderer.setSize(window.innerWidth, window.innerHeight); camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); } }
+  function resize(){ if (renderer){ renderer.setSize(window.innerWidth, window.innerHeight); camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); } }
 
-  // Simple weapon
+  function showCS1xMenu(){ document.getElementById('mainMenuOverlay').style.display = 'flex'; }
+
   function startMode(mode){
     document.getElementById('mainMenuOverlay').style.display = 'none';
-    if (mode === 'FFA') spawnBotsForTraining(1);
-    if (mode === 'DUEL'){
-      const a = new THREE.Group(); a.position.set(-2,0,-6); scene.add(a);
-      const b = new THREE.Group(); b.position.set(2,0,-6); scene.add(b);
-      bots.push(a,b);
+    if (mode==='FFA'){ spawnBotsForTraining(1); }
+    if (mode==='DUEL'){
+      const bot1 = createCharacterModel(0); bot1.position.set(-2,0,-6); scene.add(bot1);
+      const bot2 = createCharacterModel(1); bot2.position.set(2,0,-6); scene.add(bot2);
+      bots.push(bot1, bot2);
     }
   }
 
+  // Training
+  let bots = [];
   function spawnBotsForTraining(diff){
     // clear
-    bots = [];
-    const pts = [ new THREE.Vector3(-5,0,-5), new THREE.Vector3(5,0,-5), new THREE.Vector3(0,0,5) ];
+    bots.forEach(b => scene.remove(b)); bots = [];
+    const pts = [ new THREE.Vector3(-5,0,-6), new THREE.Vector3(5,0,-6), new THREE.Vector3(0,0,5) ];
     for (let i=0;i<pts.length;i++){
       const bot = createCharacterModel(0);
       bot.position.copy(pts[i]);
@@ -203,39 +214,74 @@
   }
 
   function createCharacterModel(team){
-    const group = new THREE.Group();
+    const g = new THREE.Group();
     const color = team===0 ? 0x2b6bd3 : 0x8b0000;
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.6,1.0,0.3), new THREE.MeshStandardMaterial({color})); torso.position.y = 0.5; group.add(torso);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.22,12,12), new THREE.MeshStandardMaterial({color:0xffd8b4})); head.position.y = 1.15; group.add(head);
-    const helmet = new THREE.Mesh(new THREE.BoxGeometry(0.66,0.25,0.66), new THREE.MeshStandardMaterial({color:0x111111})); helmet.position.y = 1.4; group.add(helmet);
-    const lArm = new THREE.Mesh(new THREE.BoxGeometry(0.14,0.8,0.14), new THREE.MeshStandardMaterial({color})); lArm.position.set(-0.54,0.75,0);
-    const rArm = lArm.clone(); rArm.position.set(0.54,0.75,0);
-    const lLeg = new THREE.Mesh(new THREE.BoxGeometry(0.2,0.9,0.2), new THREE.MeshStandardMaterial({color:0x333333})); lLeg.position.set(-0.18,-0.05,0);
-    const rLeg = lLeg.clone(); rLeg.position.set(0.18,-0.05,0);
-    const leftArmPivot = new THREE.Group(); leftArmPivot.position.set(-0.54,0.75,0); leftArmPivot.add(lArm);
-    const rightArmPivot = new THREE.Group(); rightArmPivot.position.set(0.54,0.75,0); rightArmPivot.add(rArm);
-    group.add(leftArmPivot); group.add(rightArmPivot); group.add(lLeg); group.add(rLeg);
-    group.userData = { team, animTime:0, joints: { torso, head, helmet, leftArm: lArm, rightArm: rArm, leftLeg: lLeg, rightLeg: rLeg, leftArmPivot, rightArmPivot } };
-    return group;
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.6,1.0,0.3), new THREE.MeshStandardMaterial({color})); torso.position.y = 0.5; g.add(torso);
+    const head  = new THREE.Mesh(new THREE.SphereGeometry(0.22,12,12), new THREE.MeshStandardMaterial({color:0xffd8b4})); head.position.y = 1.15; g.add(head);
+    const helmet = new THREE.Mesh(new THREE.BoxGeometry(0.66,0.25,0.66), new THREE.MeshStandardMaterial({color:0x111111})); helmet.position.y = 1.4; g.add(helmet);
+    g.userData = { team, joints:null, animTime:0 };
+    return g;
   }
 
-  // Init & overlay
+  // Init + overlay
   initScene();
-  // Show main menu
-  document.getElementById('playFFA').addEventListener('click', ()=>{ startMode('FFA'); });
-  document.getElementById('playDuel').addEventListener('click', ()=>{ startMode('DUEL'); });
-  document.getElementById('openSettings').addEventListener('click', ()=>{ /* show settings */ });
-  document.getElementById('openFriends').addEventListener('click', ()=>{ /* show friends */ });
+  showCS1xMenu();
 
-  // Start render loop
-  function renderLoop(){
-    requestAnimationFrame(renderLoop);
-    // cadence: auto-fire could be added here
+  // Loop
+  function loop(){
+    requestAnimationFrame(loop);
+    const dt = clock.getDelta();
+
+    // Bot loop
+    if (bots.length){
+      for (const bot of bots){
+        if (!bot.userData.alive) continue;
+        bot.userData.animTime = (bot.userData.animTime||0) + dt;
+        const t = bot.userData.animTime;
+        if (bot.userData.joints){
+          const j = bot.userData.joints;
+          const swing = Math.sin(t * bot.userData.speed) * 0.6;
+          if (j.leftLeg) j.leftLeg.rotation.x = swing;
+          if (j.rightLeg) j.rightLeg.rotation.x = -swing;
+          if (j.leftArmPivot) j.leftArmPivot.rotation.x = Math.cos(t * bot.userData.speed) * 0.6;
+          if (j.rightArmPivot) j.rightArmPivot.rotation.x = -Math.cos(t * bot.userData.speed) * 0.6;
+        }
+        // move toward player
+        const playerPos = new THREE.Vector3();
+        camera.getWorldPosition(playerPos);
+        const dir = new THREE.Vector3().subVectors(playerPos, bot.position).normalize();
+        bot.position.add(dir.multiplyScalar(bot.userData.speed * dt * 0.8));
+      }
+    }
+
+    // FOV zoom
+    if (typeof camera !== 'undefined'){
+      const targetFov = isZooming ? zoomFov : baseFov;
+      camera.fov += (targetFov - camera.fov) * 0.2;
+      camera.updateProjectionMatrix();
+    }
+
     if (renderer && scene && camera) renderer.render(scene, camera);
   }
-  renderLoop();
+  loop();
 
-  // Expose a ready-made client script layout via this single file
-</script>
+  // Helpers: show main menu on load
+  showCS1xMenu();
+
+  // Bind main menu actions
+  document.getElementById('playFFA')?.addEventListener('click', ()=>startMode('FFA'));
+  document.getElementById('playDuel')?.addEventListener('click', ()=>startMode('DUEL'));
+
+  // Copy invite link
+  document.getElementById('copyInviteBtn')?.addEventListener('click', ()=>{
+    const friendId = document.getElementById('inviteId').value || 'Friend';
+    const link = location.origin + location.pathname + '?player=' + encodeURIComponent(friendId) + '&title=' + encodeURIComponent(document.title);
+    navigator.clipboard.writeText(link);
+  });
+
+  // Start
+  initScene();
+  // End of single-file client
+  </script>
 </body>
 </html>
