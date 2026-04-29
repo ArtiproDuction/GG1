@@ -1,35 +1,23 @@
 // Minimal WebSocket multiplayer server (Node.js + ws)
-// To run: npm init -y; npm i ws
-// Start with: node server.js
-
 const WebSocket = require('ws');
 const PORT = 8080;
 const wss = new WebSocket.Server({ port: PORT });
 
 console.log('WebSocket server started on ws://localhost:' + PORT);
 
-// Rooms: roomId -> { id, clients: Set, players: Map<id, PlayerState>, mode }
+// Rooms: roomId -> { id, clients: Set, players: Map<id, PlayerState> }
 const rooms = new Map();
-
 function broadcast(roomId, msg){
   const r = rooms.get(roomId);
   if (!r) return;
   const s = JSON.stringify(msg);
-  for (const cli of r.clients) {
-    if (cli.readyState === WebSocket.OPEN) cli.send(s);
-  }
+  for (const cli of r.clients) if (cli.readyState === WebSocket.OPEN) cli.send(s);
 }
-
 function ensureRoom(roomId){
-  if (!rooms.has(roomId)) {
-    rooms.set(roomId, { id: roomId, clients: new Set(), players: {}, mode: 'coop' });
-  }
+  if (!rooms.has(roomId)) rooms.set(roomId, { id: roomId, clients: new Set(), players: {}, mode:'coop' });
   return rooms.get(roomId);
 }
-
-function nextId(prefix='P'){
-  return prefix + Math.random().toString(36).slice(2,6);
-}
+function nextId(prefix='P'){ return prefix + Math.random().toString(36).slice(2,6); }
 
 wss.on('connection', (ws) => {
   ws.isAlive = true;
@@ -40,68 +28,59 @@ wss.on('connection', (ws) => {
       const room = ensureRoom(data.room || 'default');
       ws.room = room.id;
       ws.playerId = data.id || (data.player || nextId());
-
-      // mode and team
-      if (data.mode && (data.mode === 'coop' || data.mode === 'versus' || data.mode === 'training')) {
+      // поддержка режима лобби (coop vs versus)
+      if (data.mode && (data.mode === 'coop' || data.mode === 'versus')) {
         room.mode = data.mode;
       }
-      const team = data.team !== undefined ? data.team : null;
-
-      // store player
+      // store player if not exists
       if (!room.players[ws.playerId]) {
         room.players[ws.playerId] = {
           id: ws.playerId,
           nickname: data.nickname || ws.playerId,
-          x: 0, y: 0, z: 0, rot: 0, hp: 100, alive: true,
-          team: team
+          x: 0, y: 0, z: 0, rot: 0, hp: 100, alive: true
         };
       }
-      if (team !== null){
-        room.players[ws.playerId].team = team;
-      }
-
       room.clients.add(ws);
+      // host assignment
       if (!room.hostId) room.hostId = ws.playerId;
-
-      // assign teams for vs/coop
+      // распределяем команду в зависимости от режима
       if (room.mode === 'coop') {
+        // все в одной команде 0
         Object.values(room.players).forEach(p => p.team = 0);
-      } else if (room.mode === 'versus') {
-        // alternate teams
+      } else {
+        // чередование команд для Versus
         let i = 0;
         for (let pid of Object.keys(room.players)) {
-          if (pid === ws.playerId) continue;
           room.players[pid].team = i % 2; i++;
         }
       }
-
       ws.send(JSON.stringify({type:'joinAck', id: ws.playerId, room: room.id, hostId: room.hostId, mode: room.mode}));
       broadcast(room.id, {type:'state', players: Object.values(room.players), hostId: room.hostId, mode: room.mode});
       return;
     }
-    if (!ws.room) return;
-
-    // Movement
+    if (!ws.room) return; // ignore others before join
+    // Move
     if (data.type === 'move'){
       const r = rooms.get(ws.room);
       const p = r?.players[ws.playerId];
       if (p){ p.x = data.x; p.y = data.y; p.z = data.z; p.rot = data.rot || p.rot; }
     } else if (data.type === 'shoot'){
-      // simplify
+      // simple hit test against players in same room
       const r = rooms.get(ws.room);
       const shooter = r?.players[ws.playerId];
       if (!r || !shooter) return;
-
       const origin = { ...shooter, x: shooter.x, y: shooter.y, z: shooter.z };
+      // direction assumed to be provided
       const dir = data.direction || {x:0, y:0, z:1};
       const hitIds = [];
-
       for (const id of Object.keys(r.players)){
         if (id === ws.playerId) continue;
         const pl = r.players[id];
         const dx = pl.x - origin.x, dy = pl.y - origin.y, dz = pl.z - origin.z;
         const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+        // simple range check
         if (dist < 25){
+          // naive line-of-sight by dot
           const v = {x: dx, y: dy, z: dz};
           const vnorm = Math.sqrt(v.x*v.x+v.y*v.y+v.z*v.z) || 1;
           const dirNorm = Math.sqrt(dir.x*dir.x+dir.y*dir.y+dir.z*dir.z) || 1;
@@ -112,16 +91,14 @@ wss.on('connection', (ws) => {
           }
         }
       }
-
-      // apply hits with friendly-fire protection (will be applied on client)
+      // apply hits with friendly-fire protection
       const shooterTeam = shooter?.team !== undefined ? shooter.team : -1;
       hitIds.forEach(id => {
         const target = r.players[id];
         if (!target) return;
-        if (shooterTeam !== -1 && target.team === shooterTeam) return;
+        if (shooterTeam !== -1 && target.team === shooterTeam) return; // no damage to same team
         target.hp -= 25; if (target.hp <= 0) target.alive = false;
       });
-
       broadcast(ws.room, {type:'state', players: Object.values(r.players), hostId: r.hostId, mode: r.mode});
     } else if (data.type === 'ready'){
       const r = rooms.get(ws.room);
@@ -134,7 +111,7 @@ wss.on('connection', (ws) => {
       }
     } else if (data.type === 'setMode'){
       const r = rooms.get(ws.room);
-      if (r && (data.mode === 'coop' || data.mode === 'versus' || data.mode === 'training')){
+      if (r && (data.mode === 'coop' || data.mode === 'versus')){
         r.mode = data.mode;
         if (r.mode === 'coop'){ Object.values(r.players).forEach(p => p.team = 0); }
         else { let i=0; for (let pid of Object.keys(r.players)){ r.players[pid].team = i%2; i++; } }
