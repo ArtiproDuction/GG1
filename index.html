@@ -2,29 +2,31 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <title>GunShot — Unified FPS Arena</title>
+  <title>GunShot — Unified Arena</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root{ --bg:#0b0f1a; --panel: rgba(0,0,0,.75); --accent:#2a6cff; --text:#e8f0ff; }
     html, body { height:100%; margin:0; background:#000; color:var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto; }
     #scene { width: 100%; height: 100vh; display:block; background:#000; }
 
-    /* HUD & reticle */
+    /* HUD */
     #hud { position: fixed; top: 8px; left: 8px; padding: 8px 12px; background: rgba(0,0,0,.6); border-radius: 6px; z-index: 10; font-weight: bold; }
-    #reticle { position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 18px; height: 18px; pointer-events: none; z-index: 999; }
 
-    /* CS1.6-style main menu overlay (центрированный блок) */
-    #mainMenuOverlay { display:flex; align-items:center; justify-content:center; position:fixed; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,.6); z-index:9999; }
-    .menuCard { width: 700px; max-width: 92vw; background: #1a1a1a; border: 2px solid #2f5cff; border-radius: 12px; padding: 22px; text-align: center; color:#e6f0ff; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
-    .menuTitle { font-family: Impact, "Arial Black", sans-serif; font-size: 54px; color:#d9eaff; text-shadow: 0 0 12px #4ea3ff; letter-spacing:2px; margin-bottom:6px; }
+    /* Reticle */
+    #reticle { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 20px; height: 20px; pointer-events: none; z-index: 999; }
+
+    /* CS1.6-like main menu overlay (центрированный блок) */
+    #mainMenuOverlay { display:flex; align-items:center; justify-content:center; position:fixed; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,.65); z-index:9999; }
+    .menuCard { width: 720px; max-width: 92vw; background: #1a1a1a; border: 2px solid #2f5cff; border-radius: 12px; padding: 22px; text-align: center; color:#e6f0ff; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+    .menuTitle { font-family: Impact, "Arial Black", sans-serif; font-size: 54px; color:#eaf6ff; text-shadow: 0 0 12px #4ea3ff; letter-spacing:2px; margin-bottom:6px; text-transform:uppercase; }
     .menuSubtitle { color:#a8c8ff; font-size:14px; margin-bottom:14px; }
     .menuRow { display:flex; gap:16px; justify-content:center; margin: 8px 0; }
-    .menuBtn { height:64px; width:260px; border-radius:8px; border:0; font-weight:bold; font-size:20px; cursor:pointer;
+    .menuBtn { height:64px; width:260px; border-radius:8px; border:0; font-weight: bold; font-size:20px; cursor:pointer;
       color:#041e3a; background: linear-gradient(#6a9dfc, #2a63e6); box-shadow:0 6px 14px rgba(0,0,0,.4);
     }
     .menuBtn.secondary { background: linear-gradient(#232323, #1a1a1a); color:#e6e6e6; }
 
-    /* Panels (settings/friends) */
+    /* Panels */
     #settingsPanel, #friendsPanel { display:none; position: fixed; right: 12px; top: 12px; width: 320px; padding: 16px; background: rgba(0,0,0,.75);
       border-radius: 8px; border:1px solid #444; z-index:999; }
     #settingsPanel h3, #friendsPanel h3 { margin:0 0 12px 0; }
@@ -36,6 +38,7 @@
       .menuCard { width: 90vw; }
       .menuRow { flex-direction: column; }
       .menuBtn { width: 100%; }
+      #settingsPanel, #friendsPanel { width: 90vw; right: 5%; left: 5%; }
     }
   </style>
 </head>
@@ -45,7 +48,7 @@
 
   <canvas id="scene"></canvas>
 
-  <!-- Overlay main CS1.6-style menu -->
+  <!-- CS1.6-style main menu (центровер) -->
   <div id="mainMenuOverlay" aria-label="Main Menu">
     <div class="menuCard">
       <div class="menuTitle" style="text-transform:uppercase; font-weight:900;">GunShot</div>
@@ -86,7 +89,7 @@
   </div>
 
   <!-- Epic Lobby -->
-  <div id="epicLobby" style="display:none; position:fixed; right:12px; bottom:70px; width:360px; background: rgba(0,0,0,.85); border:1px solid #444; border-radius:8px; padding:12px; z-index:9;">
+  <div id="epicLobby" style="display:none; position:fixed; right:12px; bottom:70px; width:360px; background: rgba(0,0,0,.8); border:1px solid #444; border-radius:8px; padding:12px; z-index:9;">
     <div class="logo" style="font-family:Impact, 'Arial Black', sans-serif; font-size:20px; text-align:center; color:#fff; margin-bottom:6px;">GunShot Lobby</div>
     <div id="lobbyLeft" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(110px,1fr)); gap:8px; max-height: 180px; overflow:auto;"></div>
     <div style="margin-top:8px; display:flex; gap:8px; justify-content: space-between;">
@@ -117,7 +120,7 @@
 
   <script src="https://unpkg.com/three@0.152.0/build/three.min.js"></script>
   <script>
-  // All-in-one GunShot client: menus, 3D scene, bots, lobbies (all-in-one)
+  // All-in-one GunShot client (CS1.6-like menu + game)
 
   // Title
   (function(){
@@ -127,12 +130,12 @@
     document.title = saved + ' — GunShot';
   })();
 
-  // Three.js
+  // Scene
   let scene, camera, renderer;
   let player, weaponGroup;
   let clock = new THREE.Clock();
   let bots = [];
-  let trainingActive = false;
+  let trainMode = false;
   let botDiff = 0;
   let move = { w:false,a:false,s:false,d:false };
   let isZooming = false, isInspecting = false;
@@ -151,60 +154,39 @@
 
     // weapon
     weaponGroup = new THREE.Group(); camera.add(weaponGroup);
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.9,0.25,0.25), new THREE.MeshStandardMaterial({color:0x555555})); body.position.y = 0.0;
-    const barrel = new THREE.Mesh(new THREE.BoxGeometry(1.0,0.15,0.25), new THREE.MeshStandardMaterial({color:0x333333})); barrel.position.set(0.9,0,-0.2);
-    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.25,0.4,0.25), new THREE.MeshStandardMaterial({color:0x444444})); mag.position.set(-0.25,0.05,-0.15);
-    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.25,0.5,0.25), new THREE.MeshStandardMaterial({color:0x666666})); grip.position.set(-0.6,0.05,-0.15);
-    weaponGroup.add(body, barrel, mag, grip);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.9,0.25,0.25), new THREE.MeshStandardMaterial({color:0x555555})); body.position.y = 0.0; weaponGroup.add(body);
+    const barrel = new THREE.Mesh(new THREE.BoxGeometry(1.0,0.15,0.25), new THREE.MeshStandardMaterial({color:0x333333})); barrel.position.set(0.9,0,-0.2); weaponGroup.add(barrel);
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.25,0.4,0.25), new THREE.MeshStandardMaterial({color:0x444444})); mag.position.set(-0.25,0.05,-0.15); weaponGroup.add(mag);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.25,0.5,0.25), new THREE.MeshStandardMaterial({color:0x666666})); grip.position.set(-0.6,0.05,-0.15); weaponGroup.add(grip);
     weaponGroup.position.set(0.6,-0.02,-0.8);
 
+    // bots (training)
     // lights
     scene.add(new THREE.AmbientLight(0xffffff,0.6));
     scene.add(new THREE.DirectionalLight(0xffffff,0.8));
 
-    // Controls
-    window.addEventListener('keydown', (e)=>{ if (e.code==='KeyW') move.w = true; if (e.code==='KeyS') move.s = true; if (e.code==='KeyA') move.a = true; if (e.code==='KeyD') move.d = true; });
-    window.addEventListener('keyup', (e)=>{ if (e.code==='KeyW') move.w = false; if (e.code==='KeyS') move.s = false; if (e.code==='KeyA') move.a = false; if (e.code==='KeyD') move.d = false; });
-
-    const canvas = canvas;
-    canvas.addEventListener('click', ()=>{ canvas.requestPointerLock(); }, false);
-    document.addEventListener('pointerlockchange', ()=>{}, false);
-
-    // mouse look
-    let yaw=0, pitch=0;
-    document.addEventListener('mousemove', (e)=>{ if (document.pointerLockElement !== canvas) return; yaw -= e.movementX*0.0025; pitch -= e.movementY*0.0025; camera.rotation.x = pitch; player.rotation.y = yaw; });
-
-    // shoot cadence
-    canvas.addEventListener('mousedown', (ev)=>{ if (ev.button===0){ isFiring = true; timeSinceShot = 0; } if (ev.button===2) isZooming = true; });
-    window.addEventListener('mouseup', (ev)=>{ if (ev.button===0) isFiring = false; if (ev.button===2) isZooming = false; });
-
-    document.addEventListener('contextmenu', (e)=>{ e.preventDefault(); isZooming = true; }, false);
-
-    // Settings
-    document.getElementById('sens').addEventListener('input', (ev)=>{ document.getElementById('sensVal2').textContent = ev.target.value; });
-    document.getElementById('sens').value = 1; document.getElementById('sensVal2').textContent = '1.0';
+    // keyboard/mouse hosts
+    // (один файл — базовые события будут ниже)
   }
 
   function resize(){ if (renderer){ renderer.setSize(window.innerWidth, window.innerHeight); camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); } }
 
-  function showCS1xMenu(){ document.getElementById('mainMenuOverlay').style.display = 'flex'; }
-
-  function startMode(mode){
-    document.getElementById('mainMenuOverlay').style.display = 'none';
-    if (mode==='FFA'){ spawnBotsForTraining(1); }
-    if (mode==='DUEL'){
-      const bot1 = createCharacterModel(0); bot1.position.set(-2,0,-6); scene.add(bot1);
-      const bot2 = createCharacterModel(1); bot2.position.set(2,0,-6); scene.add(bot2);
-      bots.push(bot1, bot2);
-    }
+  // Create a simple bot model
+  function createCharacterModel(team){
+    const g = new THREE.Group();
+    const color = team===0 ? 0x2b6bd3 : 0x8b0000;
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.6,1.0,0.3), new THREE.MeshStandardMaterial({color})); torso.position.y = 0.5; g.add(torso);
+    const head  = new THREE.Mesh(new THREE.SphereGeometry(0.22,12,12), new THREE.MeshStandardMaterial({color:0xffd8b4})); head.position.y = 1.15; g.add(head);
+    const helmet = new THREE.Mesh(new THREE.BoxGeometry(0.66,0.25,0.66), new THREE.MeshStandardMaterial({color:0x111111})); helmet.position.y = 1.4; g.add(helmet);
+    g.userData = { team, animTime:0, alive:true };
+    return g;
   }
 
-  // Training
-  let bots = [];
+  // Training spawner
   function spawnBotsForTraining(diff){
-    // clear
+    // remove old bots
     bots.forEach(b => scene.remove(b)); bots = [];
-    const pts = [ new THREE.Vector3(-5,0,-6), new THREE.Vector3(5,0,-6), new THREE.Vector3(0,0,5) ];
+    const pts = [ new THREE.Vector3(-5,0,-5), new THREE.Vector3(5,0,-5), new THREE.Vector3(0,0,5) ];
     for (let i=0;i<pts.length;i++){
       const bot = createCharacterModel(0);
       bot.position.copy(pts[i]);
@@ -213,75 +195,93 @@
     }
   }
 
-  function createCharacterModel(team){
-    const g = new THREE.Group();
-    const color = team===0 ? 0x2b6bd3 : 0x8b0000;
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.6,1.0,0.3), new THREE.MeshStandardMaterial({color})); torso.position.y = 0.5; g.add(torso);
-    const head  = new THREE.Mesh(new THREE.SphereGeometry(0.22,12,12), new THREE.MeshStandardMaterial({color:0xffd8b4})); head.position.y = 1.15; g.add(head);
-    const helmet = new THREE.Mesh(new THREE.BoxGeometry(0.66,0.25,0.66), new THREE.MeshStandardMaterial({color:0x111111})); helmet.position.y = 1.4; g.add(helmet);
-    g.userData = { team, joints:null, animTime:0 };
-    return g;
+  // Firing
+  let fireHeld = false;
+  let timeSinceShot = 0;
+  function shoot(){
+    timeSinceShot = 0;
+    // Simple Raycast against bots
+    const origin = new THREE.Vector3(); origin.copy(camera.position);
+    const dir = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion).normalize();
+    const ray = new THREE.Raycaster(origin, dir, 0, 100);
+    const hits = ray.intersectObjects(bots, true);
+    if (hits.length){
+      const bot = hits[0].object;
+      bot.userData.hp = (bot.userData.hp||100) - 25;
+      if (bot.userData.hp <= 0){
+        bot.userData.alive = false;
+        bot.rotation.x = -Math.PI/2;
+      } else {
+        // hit flash
+        if (bot.material && bot.material.color){
+          bot.material.color.set(0xff5555);
+          setTimeout(()=>{ bot.material.color.set(0xffffff); }, 120);
+        }
+      }
+    }
   }
 
-  // Init + overlay
+  // Init
   initScene();
-  showCS1xMenu();
 
-  // Loop
+  // CS1.6-like menu wiring
+  document.getElementById('playFFA')?.addEventListener('click', ()=>{
+    document.getElementById('mainMenuOverlay').style.display='none';
+    spawnBotsForTraining(0);
+  });
+  document.getElementById('playDuel')?.addEventListener('click', ()=>{
+    document.getElementById('mainMenuOverlay').style.display='none';
+    const a = createCharacterModel(0); a.position.set(-2,0,-6); scene.add(a);
+    const b = createCharacterModel(1); b.position.set(2,0,-6); scene.add(b);
+  });
+
+  // Settings / Friends toggles
+  document.getElementById('openSettings')?.addEventListener('click', ()=>{ document.getElementById('settingsPanel').style.display='block'; document.getElementById('mainMenuOverlay').style.display='none'; });
+  document.getElementById('settingsClose')?.addEventListener('click', ()=>{ document.getElementById('settingsPanel').style.display='none'; document.getElementById('mainMenuOverlay').style.display='flex'; });
+  document.getElementById('openFriends')?.addEventListener('click', ()=>{ document.getElementById('friendsPanel').style.display='block'; document.getElementById('mainMenuOverlay').style.display='none'; });
+
+  // Copy invite link
+  document.getElementById('copyInviteBtn')?.addEventListener('click', ()=>{
+    const friend = document.getElementById('inviteId').value || 'Friend';
+    const link = location.origin + location.pathname + '?player=' + encodeURIComponent(friend) + '&title=' + encodeURIComponent(document.title);
+    navigator.clipboard.writeText(link);
+  });
+
+  // Simple render loop (no server, client-side bot updates)
   function loop(){
     requestAnimationFrame(loop);
     const dt = clock.getDelta();
-
-    // Bot loop
-    if (bots.length){
-      for (const bot of bots){
-        if (!bot.userData.alive) continue;
-        bot.userData.animTime = (bot.userData.animTime||0) + dt;
-        const t = bot.userData.animTime;
-        if (bot.userData.joints){
-          const j = bot.userData.joints;
-          const swing = Math.sin(t * bot.userData.speed) * 0.6;
-          if (j.leftLeg) j.leftLeg.rotation.x = swing;
-          if (j.rightLeg) j.rightLeg.rotation.x = -swing;
-          if (j.leftArmPivot) j.leftArmPivot.rotation.x = Math.cos(t * bot.userData.speed) * 0.6;
-          if (j.rightArmPivot) j.rightArmPivot.rotation.x = -Math.cos(t * bot.userData.speed) * 0.6;
-        }
-        // move toward player
-        const playerPos = new THREE.Vector3();
-        camera.getWorldPosition(playerPos);
-        const dir = new THREE.Vector3().subVectors(playerPos, bot.position).normalize();
-        bot.position.add(dir.multiplyScalar(bot.userData.speed * dt * 0.8));
+    // bots animate
+    bots.forEach(bot => {
+      if (!bot.userData.alive) return;
+      bot.userData.animTime = (bot.userData.animTime || 0) + dt;
+      const t = bot.userData.animTime;
+      if (bot.userData.joints){
+        const s = Math.sin(t * (bot.userData.speed||1)) * 0.6;
+        bot.leftLeg && (bot.leftLeg.rotation.x = s);
+        bot.rightLeg && (bot.rightLeg.rotation.x = -s);
+        bot.leftArmPivot && (bot.leftArmPivot.rotation.x = Math.cos(t) * 0.6);
+        bot.rightArmPivot && (bot.rightArmPivot.rotation.x = -Math.cos(t) * 0.6);
       }
-    }
-
-    // FOV zoom
-    if (typeof camera !== 'undefined'){
-      const targetFov = isZooming ? zoomFov : baseFov;
+      // move toward player (simple)
+      const playerPos = new THREE.Vector3();
+      camera.getWorldPosition(playerPos);
+      const dir = new THREE.Vector3().subVectors(playerPos, bot.position).normalize();
+      bot.position.add(dir.multiplyScalar((bot.userData.speed||1) * dt * 0.5));
+    });
+    // zoom
+    const targetFov = isZooming ? 56.25 : 75;
+    if (camera){
       camera.fov += (targetFov - camera.fov) * 0.2;
       camera.updateProjectionMatrix();
     }
-
+    // render
     if (renderer && scene && camera) renderer.render(scene, camera);
   }
   loop();
 
-  // Helpers: show main menu on load
-  showCS1xMenu();
-
-  // Bind main menu actions
-  document.getElementById('playFFA')?.addEventListener('click', ()=>startMode('FFA'));
-  document.getElementById('playDuel')?.addEventListener('click', ()=>startMode('DUEL'));
-
-  // Copy invite link
-  document.getElementById('copyInviteBtn')?.addEventListener('click', ()=>{
-    const friendId = document.getElementById('inviteId').value || 'Friend';
-    const link = location.origin + location.pathname + '?player=' + encodeURIComponent(friendId) + '&title=' + encodeURIComponent(document.title);
-    navigator.clipboard.writeText(link);
-  });
-
-  // Start
-  initScene();
-  // End of single-file client
-  </script>
+  // Start with the main menu shown
+  // The page is a single self-contained HTML file
+</script>
 </body>
 </html>
