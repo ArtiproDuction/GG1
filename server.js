@@ -2,13 +2,11 @@
 const WebSocket = require('ws');
 const PORT = 8080;
 const wss = new WebSocket.Server({ port: PORT });
-
 console.log('WebSocket server started on ws://localhost:' + PORT);
 
 const rooms = new Map();
 function broadcast(roomId, msg){
-  const r = rooms.get(roomId);
-  if (!r) return;
+  const r = rooms.get(roomId); if (!r) return;
   const s = JSON.stringify(msg);
   for (const cli of r.clients) if (cli.readyState === WebSocket.OPEN) cli.send(s);
 }
@@ -31,20 +29,20 @@ wss.on('connection', (ws) => {
       const team = data.team !== undefined ? data.team : null;
 
       if (!room.players[ws.playerId]) {
-        room.players[ws.playerId] = {
-          id: ws.playerId, nickname: data.nickname || ws.playerId, x:0,y:0,z:0, rot:0, hp:100, alive:true, team: team
-        };
+        room.players[ws.playerId] = { id: ws.playerId, nickname: data.nickname || ws.playerId, x:0,y:0,z:0, rot:0, hp:100, alive:true, team: team };
       } else if (typeof data.team !== 'undefined') {
         room.players[ws.playerId].team = data.team;
-     }
+      }
 
       room.clients.add(ws);
       if (!room.hostId) room.hostId = ws.playerId;
+
       if (room.mode === 'versus'){
         let i=0; for (let pid of Object.keys(room.players)){ if (pid===ws.playerId) continue; room.players[pid].team = i%2; i++; }
       } else if (room.mode==='coop'){
         Object.values(room.players).forEach(p => p.team = 0);
       }
+
       ws.send(JSON.stringify({type:'joinAck', id: ws.playerId, room: room.id, hostId: room.hostId, mode: room.mode}));
       broadcast(room.id, {type:'state', players: Object.values(room.players), hostId: room.hostId, mode: room.mode});
       return;
