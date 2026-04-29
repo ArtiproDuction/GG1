@@ -1,436 +1,241 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8" />
-  <title>Unified FPS Network — Однофайловый каркас</title>
+  <meta charset="UTF-8" />
+  <title>GunShot — Unified FPS Arena</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    :root { --bg: #0b1020; --card: #151a2b; --text: #e5e7eb; --muted: #9ca3af; }
-    html, body { height: 100%; margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto; }
-    .wrap { max-width: 1100px; margin: 0 auto; padding: 20px; }
-    h1 { font-size: 28px; margin: 16px 0; }
-    section { background: #0f1220; border: 1px solid #2e2e2e; border-radius: 8px; padding: 16px; margin: 16px 0; }
-    pre { background: #0b1220; color: #e6e6e6; padding: 12px; border-radius: 6px; border: 1px solid #2b2b2b; overflow: auto; max-height: 420px; }
-    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
-    .hint { color: var(--muted); font-size: 13px; }
-    @media (max-width: 800px) {
-      pre { font-size: 11px; }
+    :root{ --bg:#0b0f1a; --panel: rgba(0,0,0,.75); --accent:#2a6cff; --text:#e8f0ff; }
+    html, body { height:100%; margin:0; background:#000; color:var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto; }
+    #scene { width: 100%; height: 100vh; display:block; background:#000; }
+
+    /* HUD & reticle */
+    #hud { position: fixed; top: 8px; left: 8px; padding: 8px 12px; background: rgba(0,0,0,.6); border-radius: 6px; z-index: 10; font-weight: bold; }
+    #reticle { position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 18px; height: 18px; pointer-events: none; z-index: 999; }
+
+    /* CS1.6-style main menu overlay (общий стиль) */
+    #mainMenuOverlay { display:flex; align-items:center; justify-content:center; position:fixed; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,.6); z-index:9999; }
+    .menuCard { width: 700px; max-width: 92vw; background: #1a1a1a; border: 2px solid #2f5cff; border-radius: 12px; padding: 22px; text-align: center; color:#e6f0ff; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+    .menuTitle { font-family: Impact, 'Arial Black', sans-serif; font-size: 54px; color:#d9eaff; text-shadow: 0 0 12px #4ea3ff; letter-spacing:2px; margin-bottom:6px; }
+    .menuSubtitle { color:#a8c8ff; font-size:14px; margin-bottom:14px; }
+    .menuRow { display:flex; gap:16px; justify-content:center; margin: 8px 0; }
+    .menuBtn { height:64px; width: 260px; border-radius: 8px; border:0; font-weight:bold; font-size:20px; cursor:pointer;
+      color:#041e3a; background: linear-gradient(#6a9dfc, #2a63e6); box-shadow:0 6px 14px rgba(0,0,0,.4);
+    }
+    .menuBtn.secondary { background: linear-gradient(#232323, #1a1a1a); color:#e6e6e6; }
+
+    /* Panels (settings/friends) */
+    #settingsPanel, #friendsPanel { display:none; position: fixed; right: 12px; top: 12px; width: 320px; padding: 16px; background: rgba(0,0,0,.75);
+      border-radius: 8px; border:1px solid #444; z-index:999; }
+    #settingsPanel h3, #friendsPanel h3 { margin:0 0 12px 0; }
+    #friendsPanel ul { list-style:none; padding:0; margin:0 0 8px 0; max-height:200px; overflow:auto; }
+    #friendsPanel li { padding:6px 0; border-bottom:1px solid #555; }
+
+    @media (max-width: 800px){
+      #mainMenuOverlay { align-items: center; justify-content: center; }
+      .menuCard { width: 90vw; }
+      .menuRow { flex-direction: column; }
+      .menuBtn { width: 100%; }
+      #settingsPanel, #friendsPanel { width: 90vw; right: 5%; left: 5%; }
     }
   </style>
-  /* Reticle styles: dynamic via CSS vars */
-  :root { --reticle-color: #ffffff; --reticle-size: 16px; --reticle-thick: 2px; }
-  #reticle { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 9999; }
-  #reticle .dot { position: absolute; width: var(--reticle-size); height: var(--reticle-size); border-radius: 50%; background: var(--reticle-color); left: 50%; top: 50%; transform: translate(-50%, -50%); display: block; }
-  #reticle.style-cross .arm.vertical, #reticle.style-circleCross .arm.vertical { position: absolute; left: 50%; top: 50%; width: var(--reticle-thick); height: calc(var(--reticle-size)); transform: translate(-50%, -50%); background: var(--reticle-color); display: block; }
-  #reticle.style-cross .arm.horizontal, #reticle.style-circleCross .arm.horizontal { position: absolute; left: 50%; top: 50%; width: calc(var(--reticle-size)); height: var(--reticle-thick); transform: translate(-50%, -50%); background: var(--reticle-color); display: block; }
-  #reticle.style-circle .ring, #reticle.style-circleCross .ring { position: absolute; left: 50%; top: 50%; width: var(--reticle-size); height: var(--reticle-size); border: var(--reticle-thick) solid var(--reticle-color); border-radius: 50%; transform: translate(-50%, -50%); display: none; }
-  #reticle.style-dot .dot { display: block; }
-  #reticle.style-cross .arm.vertical, #reticle.style-cross .arm.horizontal { display: block; }
-  #reticle.style-circle .ring { display: block; }
-  #reticle.style-circleCross .ring { display: block; }
 </head>
 <body>
-  <div class="wrap">
-    <h1>Unified FPS Network — Однофайловый каркас</h1>
-    <p class="hint">Два ключевых файла кода: UnifiedFPSNetwork.cs и MainMenuUI_OnGUI.cs. Ниже — копия кода в виде текста внутри HTML, чтобы легко распространить в одном файле.</p>
+  <div id="hud">HP: 100 | Очки: 0</div>
+  <div id="reticle"></div>
 
-    <section id="section-unified">
-      <h2>UnifiedFPSNetwork.cs</h2>
-      <pre><code id="codeUnified"></code></pre>
-    </section>
+  <canvas id="scene"></canvas>
 
-    <section id="section-mainmenu">
-      <h2>MainMenuUI_OnGUI.cs</h2>
-      <pre><code id="codeMainMenu"></code></pre>
-    </section>
+  <!-- CS1.6-like main menu overlay -->
+  <div id="mainMenuOverlay" aria-label="Main Menu">
+    <div class="menuCard">
+      <div class="menuTitle" style="text-transform:uppercase; font-weight:900;">GunShot</div>
+      <div class="menuSubtitle">CS1.6-inspired main menu</div>
+      <div class="menuRow">
+        <button id="playFFA" class="menuBtn">Play: FFA</button>
+        <button id="playDuel" class="menuBtn">Play: Duel with Bots</button>
+      </div>
+      <div class="menuRow" style="justify-content:center;">
+        <button id="openSettings" class="menuBtn secondary" style="width:320px;">Настройки</button>
+        <button id="openFriends" class="menuBtn secondary" style="width:320px;">Друзья</button>
+      </div>
+    </div>
   </div>
 
-  <!-- Reticle customization UI (Plan A) -->
-  <div style="position:fixed; left:20px; bottom:20px; padding:8px; background:rgba(0,0,0,0.4); border-radius:6px; z-index:9; color:#fff;">
-    <label>Прицел стиль</label>
-    <select id="reticleStyleSelect">
-      <option value="dot">Точка</option>
-      <option value="cross">Перекрестие</option>
-      <option value="circle">Круг</option>
-      <option value="circleCross">Круг+кр</option>
-    </select>
-    <label>Цвет</label>
-    <input id="reticleColorInput" type="color" value="#ffffff" />
-    <label>Размер</label>
-    <input id="reticleSizeInput" type="range" min="8" max="60" value="16" />
-    <label>Толщина</label>
-    <input id="reticleThickInput" type="range" min="1" max="6" value="2" />
+  <!-- Settings panel -->
+  <div id="settingsPanel" aria-label="Settings Panel" style="display:none;">
+    <h3 style="margin:0 0 8px 0; text-align:center;">Настройки</h3>
+    Чувствительность: <input id="sens" type="range" min="0.5" max="4" step="0.1" value="1"><span id="sensVal2" style="margin-left:6px;">1.0</span><br/>
+    Громкость: <input id="vol" type="range" min="0" max="1" step="0.01" value="1"><span id="volVal2" style="margin-left:6px;">1</span>
+    <div style="text-align:right; margin-top:8px;">
+      <button id="settingsClose" class="menuBtn secondary" style="width:100%; height:38px;">Закрыть</button>
+    </div>
   </div>
 
-  <!-- Источник кода в отдельных скриптах (чтобы не нарушить единый HTML) -->
-  <!-- Прицел: контейнер рисуется поверх игры -->
-  <div id="reticle" class="reticle style-dot" style="--reticle-color:#ffffff; --reticle-size:16px; --reticle-thick:2px;">
-    <span class="dot"></span>
-    <span class="arm vertical" style="display:none;"></span>
-    <span class="arm horizontal" style="display:none;"></span>
-    <span class="ring" style="display:none;"></span>
+  <!-- Friends panel -->
+  <div id="friendsPanel" aria-label="Friends Panel" style="display:none;">
+    <h3 style="margin:0 0 8px 0; text-align:center;">Друзья</h3>
+    <ul id="friendsList" style="max-height:180px; overflow:auto; padding:0 0 8px 0; margin:0; border-top:1px solid #555;"></ul>
+    <input id="friendInput" placeholder="Имя друга" style="width:100%; margin-top:6px;" />
+    <button id="addFriend" style="width:100%; margin-top:6px;">Добавить</button>
   </div>
-  <script id="srcUnified" type="text/plain">
-/* Unity FPS Network - single-file skeleton
-   Features: Lobbies, 1v1/FFA modes, Raycast shooting, basic movement, dynamic main menu, intro sequence.
-   This file is designed for quick iteration and prototyping. Extend with your preferred services later.
-  */
-using System;
-using System.Collections.Generic;
-using UnityEngine;
-using Mirror;
 
-namespace UnifiedFPSNetwork
-{
-    // Лобби менеджер на базе Mirror с базовой поддержкой инвайтов по никнейму
-    public class NetworkLobbyManagerExtended : NetworkLobbyManager
-    {
-        public static NetworkLobbyManagerExtended Instance;
-        public static Dictionary<string, NetworkConnection> NicknameToConnection = new Dictionary<string, NetworkConnection>();
+  <!-- Invite controls -->
+  <div style="position: fixed; left: 12px; bottom: 12px; display:flex; gap:8px; z-index:9;">
+    <input id="inviteId" placeholder="Friend ID" style="width:180px;" />
+    <button id="copyInviteBtn" style="height:40px;">Copy Invite Link</button>
+  </div>
 
-        [Serializable]
-        public class LobbyPlayerData
-        {
-            public string nickname;
-            public bool ready;
-        }
+  <!-- Epic Lobby -->
+  <div id="epicLobby" style="display:none; position:fixed; right:12px; bottom:70px; width:360px; background: rgba(0,0,0,.85); border:1px solid #444; border-radius:8px; padding:12px; z-index:9;">
+    <div class="logo" style="font-family:Impact, 'Arial Black'; font-size:20px; text-align:center; color:#fff; margin-bottom:6px;">GunShot Lobby</div>
+    <div id="lobbyLeft" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(110px,1fr)); gap:8px; max-height: 180px; overflow:auto;"></div>
+    <div style="margin-top:8px; display:flex; gap:8px; justify-content: space-between;">
+      <select id="epicMode" title="Mode">
+        <option value="coop">Coop</option>
+        <option value="versus">Versus</option>
+        <option value="training">Training</option>
+      </select>
+      <select id="epicTeam" title="Team" style="margin-left:6px;">
+        <option value="0">Special Forces</option>
+        <option value="1">Terrorists</option>
+      </select>
+    </div>
+    <div id="epicTraining" style="display:none; margin-top:8px; text-align:center;">
+      <label>Сложность ботов</label><br/>
+      <select id="epicTrainingDiff">
+        <option value="0">Easy</option>
+        <option value="1">Medium</option>
+        <option value="2">Hard</option>
+      </select><br/>
+      <button id="epicTrainingStart" style="margin-top:6px; width:100%;">Start Training</button>
+    </div>
+    <div style="margin-top:8px; display:flex; gap:8px; justify-content: space-between;">
+      <button id="epicStart" style="flex:1; height:40px;">Start Match</button>
+      <button id="epicShare" style="flex:1; height:40px;">Copy Invite Link</button>
+    </div>
+  </div>
 
-        public List<LobbyPlayerData> lobbyPlayers = new List<LobbyPlayerData>();
+  <script src="https://unpkg.com/three@0.152.0/build/three.min.js"></script>
+  <script>
+  // Unified client: イтребуется патчинг под CS1.6 стиль меню, режимы и боты
 
-        void Awake()
-        {
-            Instance = this;
-        }
+  // Title handling
+  (function(){
+    const t = new URLSearchParams(location.search).get('title') || 'GunShot';
+    const saved = localStorage.getItem('fps_personal_title') || t;
+    localStorage.setItem('fps_personal_title', saved);
+    document.title = saved + ' — GunShot';
+  })();
 
-        public override void OnServerAddPlayer(NetworkConnection conn)
-        {
-            base.OnServerAddPlayer(conn);
-            string nick = "Player" + conn.connectionId;
-            var identity = conn.identity?.GetComponent<PlayerNetworkIdentity>();
-            if (identity != null && !string.IsNullOrEmpty(identity.nickname)) nick = identity.nickname;
-            if (!NicknameToConnection.ContainsKey(nick)) NicknameToConnection[nick] = conn;
-            LobbyPlayerData lpd = new LobbyPlayerData { nickname = nick, ready = false };
-            lobbyPlayers.Add(lpd);
-        }
+  // Three.js scene
+  let scene, camera, renderer;
+  let player, weaponGroup;
+  let clock = new THREE.Clock();
+  let bots = [];
+  let trainMode = false;
+  let botDiff = 0;
 
-        [Server] public void InviteFriend(string nickname)
-        {
-            if (NicknameToConnection.TryGetValue(nickname, out var targetConn))
-            {
-                TargetLobbyInvite(targetConn, nickname);
-            }
-        }
+  function initScene(){
+    const canvas = document.getElementById('scene');
+    renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+    resize(); window.addEventListener('resize', resize);
+    scene = new THREE.Scene(); scene.background = new THREE.Color(0x0a0a0a);
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    player = new THREE.Object3D(); scene.add(player); player.add(camera); camera.position.y = 1.7;
 
-        [TargetRpc] void TargetLobbyInvite(NetworkConnection target, string nickname)
-        {
-            Debug.Log("Lobby invite received for: " + nickname);
-        }
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.MeshStandardMaterial({color:0x202020}));
+    floor.rotation.x = -Math.PI/2; scene.add(floor);
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(60,6,0.5), new THREE.MeshStandardMaterial({color:0x333333})); wall.position.set(0,3,-30); scene.add(wall);
 
-        public override void ServerChangeScene(string newSceneName)
-        {
-            base.ServerChangeScene(newSceneName);
-            lobbyPlayers.Clear();
-        }
-    }
+    // оружие
+    weaponGroup = new THREE.Group(); camera.add(weaponGroup);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.9,0.25,0.25), new THREE.MeshStandardMaterial({color:0x555555})); body.position.y = 0.0;
+    const barrel = new THREE.Mesh(new THREE.BoxGeometry(1.0,0.15,0.25), new THREE.MeshStandardMaterial({color:0x333333})); barrel.position.set(0.9,0,-0.2);
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.25,0.4,0.25), new THREE.MeshStandardMaterial({color:0x444444})); mag.position.set(-0.25,0.05,-0.15);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.25,0.5,0.25), new THREE.MeshStandardMaterial({color:0x666666})); grip.position.set(-0.6,0.05,-0.15);
+    weaponGroup.add(body, barrel, mag, grip);
+    weaponGroup.position.set(0.6,-0.05,-0.8);
 
-    // Идентификатор игрока в сети
-    public class PlayerNetworkIdentity : NetworkBehaviour
-    {
-        [SyncVar]
-        public string nickname = "Player";
+    // lights
+    scene.add(new THREE.AmbientLight(0xffffff,0.6));
+    scene.add(new THREE.DirectionalLight(0xffffff,0.8));
 
-        void Start()
-        {
-            if (isLocalPlayer)
-            {
-                CmdSetNickname(nickname);
-            }
-        }
+    // controls (overlay)
+    window.addEventListener('keydown', (e)=>{ if (e.code==='KeyW') move.forward=true; if (e.code==='KeyA') move.left=true; if (e.code==='KeyS') move.backward=true; if (e.code==='KeyD') move.right=true; });
+    window.addEventListener('keyup', (e)=>{ if (e.code==='KeyW') move.forward=false; if (e.code==='KeyA') move.left=false; if (e.code==='KeyS') move.backward=false; if (e.code==='KeyD') move.right=false; });
 
-        [Command] public void CmdSetNickname(string name)
-        {
-            if (string.IsNullOrEmpty(name)) return;
-            nickname = name;
-            NetworkLobbyManagerExtended.NicknameToConnection[nickname] = connectionToClient;
-        }
-    }
+    const canvasOverlay = canvas;
+    canvasOverlay.addEventListener('click', ()=>{ canvasOverlay.requestPointerLock(); });
 
-    // Управление персонажем игрока
-    [RequireComponent(typeof(CharacterController))]
-    public class PlayerController : NetworkBehaviour
-    {
-        public float moveSpeed = 6f;
-        public float gravity = -9.81f;
-        public Transform cameraTransform;
-        public float mouseSensitivity = 2f;
-        private CharacterController controller;
-        private Vector3 velocity;
-        private float pitch = 0f;
+    // mouse look
+    let yaw = 0, pitch = 0;
+    document.addEventListener('mousemove', (e)=>{ if (document.pointerLockElement !== canvasOverlay) return; yaw -= e.movementX*0.0025; pitch -= e.movementY*0.0025; camera.rotation.x = pitch; player.rotation.y = yaw; });
 
-        void Awake()
-        {
-            controller = GetComponent<CharacterController>();
-        }
+    // rotate to simulate zoom
+    document.addEventListener('contextmenu', (e)=>{ e.preventDefault(); }, false);
 
-        void Update()
-        {
-            if (!isLocalPlayer) return;
-            var mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
-            var mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
-            transform.Rotate(0, mouseX, 0);
-            pitch -= mouseY;
-            pitch = Mathf.Clamp(pitch, -80f, 80f);
-            if (cameraTransform != null) cameraTransform.localEulerAngles = new Vector3(pitch, 0f, 0f);
-
-            var input = new Vector3(Input.GetAxis("Horizontal"), 0, Input.GetAxis("Vertical"));
-            input = transform.TransformDirection(input);
-            Vector3 move = input * moveSpeed;
-            velocity.y += gravity * Time.deltaTime;
-            controller.Move((move + new Vector3(0, velocity.y, 0)) * Time.deltaTime);
-        }
-    }
-
-    // Простая камера-контрольная связка (для 1п/3п по желанию)
-    public class CameraController : NetworkBehaviour
-    {
-        public Transform playerBody;
-        public Transform cameraPivot;
-        public float sensitivity = 2f;
-
-        void Start()
-        {
-            if (!isLocalPlayer) this.enabled = false;
-        }
-
-        void Update()
-        {
-            if (!isLocalPlayer) return;
-            float h = Input.GetAxis("Mouse X") * sensitivity;
-            float v = Input.GetAxis("Mouse Y") * sensitivity;
-            playerBody.Rotate(0f, h, 0f);
-            if (cameraPivot != null)
-            {
-                var rx = cameraPivot.localEulerAngles.x - v;
-                rx = Mathf.Clamp(rx, -80f, 80f);
-                cameraPivot.localEulerAngles = new Vector3(rx, 0f, 0f);
-            }
-        }
-    }
-
-    // Базовая система оружия (Raycast)
-    public class WeaponSystem : NetworkBehaviour
-    {
-        public Camera viewCamera;
-        public float range = 100f;
-        public int damage = 25;
-        public float fireRate = 0.2f;
-        private float nextTimeToFire = 0f;
-
-        void Update()
-        {
-            if (!isLocalPlayer) return;
-            if (Input.GetButton("Fire1") && Time.time >= nextTimeToFire)
-            {
-                nextTimeToFire = Time.time + fireRate;
-                CmdShoot(viewCamera != null ? viewCamera.transform.position : transform.position,
-                         viewCamera != null ? viewCamera.transform.forward : transform.forward);
-            }
-        }
-
-        [Command] void CmdShoot(Vector3 origin, Vector3 direction)
-        {
-            if (Physics.Raycast(origin, direction, out var hit, range))
-            {
-                var health = hit.collider.GetComponent<HealthSystemUnified>();
-                if (health != null)
-                {
-                    var attacker = connectionToClient.identity.gameObject;
-                    health.TakeDamage(damage, attacker);
-                }
-            }
-        }
-    }
-
-    // Здоровье
-    public class HealthSystemUnified : NetworkBehaviour
-    {
-        [SyncVar] public int currentHealth = 100;
-        public int maxHealth = 100;
-
-        public override void OnStartServer()
-        {
-            base.OnStartServer();
-            currentHealth = maxHealth;
-        }
-
-        [Server] public void TakeDamage(int amount, GameObject attacker)
-        {
-            if (currentHealth <= 0) return;
-            currentHealth -= amount;
-            if (currentHealth <= 0)
-            {
-                NetworkIdentity victimId = GetComponent<NetworkIdentity>();
-                var killerId = attacker?.GetComponent<NetworkIdentity>();
-                GameModeManager.UnifiedInstance?.RegisterKill(killerId, victimId);
-                RpcDie();
-            }
-        }
-
-        [ClientRpc] void RpcDie()
-        {
-            if (isLocalPlayer) { /* local death visuals here */ }
-        }
-
-        [Server] public void ResetHealth()
-        {
-            currentHealth = maxHealth;
-        }
-    }
-
-    // Спавн и раунд-менеджмент
-    public class SpawnManager : NetworkBehaviour
-    {
-        public static SpawnManager Instance { get; private set; }
-        public Transform[] spawnPoints;
-
-        void Awake()
-        {
-            Instance = this;
-        }
-
-        public Vector3 GetSpawnPoint()
-        {
-            if (spawnPoints == null || spawnPoints.Length == 0) return Vector3.zero;
-            return spawnPoints[UnityEngine.Random.Range(0, spawnPoints.Length)].position;
-        }
-
-        [Server] public void RespawnPlayer(NetworkIdentity playerIdentity)
-        {
-            if (playerIdentity == null) return;
-            var pos = GetSpawnPoint();
-            var go = playerIdentity.gameObject;
-            go.transform.position = pos;
-            var health = go.GetComponent<HealthSystemUnified>();
-            health?.ResetHealth();
-        }
-    }
-
-    // Режимы матча и убийства
-    public class GameModeManager : NetworkBehaviour
-    {
-        public static GameModeManager UnifiedInstance;
-        public enum Mode { OneToOne, FFA }
-        [SyncVar] public Mode mode = Mode.OneToOne;
-        private readonly Dictionary<NetworkIdentity, int> kills = new Dictionary<NetworkIdentity, int>();
-
-        void Awake()
-        {
-            UnifiedInstance = this;
-        }
-
-        [Server] public void RegisterKill(NetworkIdentity killer, NetworkIdentity victim)
-        {
-            if (killer == null) return;
-            if (!kills.ContainsKey(killer)) kills[killer] = 0;
-            kills[killer]++;
-            if (mode == Mode.OneToOne && kills[killer] >= 1)
-            {
-                RpcEndGame(killer.connectionToClient);
-            }
-        }
-
-        [TargetRpc] void RpcEndGame(NetworkConnection winnerConn)
-        {
-            Debug.Log("Game over. Winner: " + (winnerConn?.identity?.GetComponent<PlayerNetworkIdentity>()?.nickname ?? "Unknown"));
-        }
-    }
-
-    // Сравнительная простая система очков (заглушка)
-    public class ScoreManager : NetworkBehaviour
-    {
-        public static ScoreManager Instance;
-        void Awake() { Instance = this; }
-    }
-}
-
-  </script>
-  <script id="srcMainMenu" type="text/plain">
-/* MainMenuUI_OnGUI.cs content will be injected here for display */
-  </script>
-  <!-- Вторая копия основного меню (для отображения в том же файле) -->
-  <script id="srcMainMenu2" type="text/plain">
-using UnityEngine;
-using UnityEngine.SceneManagement;
-
-// Lightweight OnGUI main menu to look cool without extra assets
-public class MainMenuUI_OnGUI : MonoBehaviour
-{
-  private GUIStyle titleStyle;
-  private GUIStyle btnStyle;
-  private float introProgress = 0f;
-
-  void Awake()
-  {
-    InitStyles();
-    StartCoroutine(IntroSequence());
   }
 
-  void InitStyles()
-  {
-    titleStyle = new GUIStyle(GUI.skin.label)
-    {
-      fontSize = 40,
-      alignment = TextAnchor.MiddleCenter,
-      normal = { textColor = Color.white }
-    };
-    btnStyle = new GUIStyle(GUI.skin.button)
-    {
-      fontSize = 20,
-    };
+  function resize(){ if (renderer) { renderer.setSize(window.innerWidth, window.innerHeight); camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); } }
+
+  // Simple weapon
+  function startMode(mode){
+    document.getElementById('mainMenuOverlay').style.display = 'none';
+    if (mode === 'FFA') spawnBotsForTraining(1);
+    if (mode === 'DUEL'){
+      const a = new THREE.Group(); a.position.set(-2,0,-6); scene.add(a);
+      const b = new THREE.Group(); b.position.set(2,0,-6); scene.add(b);
+      bots.push(a,b);
+    }
   }
 
-  System.Collections.IEnumerator IntroSequence()
-  {
-    float t = 0f;
-    while (t < 2f)
-    {
-      t += Time.deltaTime;
-      introProgress = Mathf.Clamp01(t / 2f);
-      yield return null;
+  function spawnBotsForTraining(diff){
+    // clear
+    bots = [];
+    const pts = [ new THREE.Vector3(-5,0,-5), new THREE.Vector3(5,0,-5), new THREE.Vector3(0,0,5) ];
+    for (let i=0;i<pts.length;i++){
+      const bot = createCharacterModel(0);
+      bot.position.copy(pts[i]);
+      bot.userData = { hp: diff===0?60: diff===1?100:150, speed: diff===0?1.5: diff===1?2.0:3.0, alive:true, team:0, animTime:0 };
+      scene.add(bot); bots.push(bot);
     }
-    introProgress = 1f;
   }
 
-  void OnGUI()
-  {
-    float w = 420f;
-    float h = 260f;
-    Rect panel = new Rect((Screen.width - w) * 0.5f, (Screen.height - h) * 0.5f, w, h);
-    // Backdrop with intro fade
-    GUI.color = new Color(0f, 0f, 0f, 0.6f * introProgress);
-    GUI.DrawTexture(panel, Texture2D.whiteTexture);
-    GUI.color = Color.white;
-    // Title
-    GUI.Label(new Rect(panel.x, panel.y - 60, w, 60), "UNIFIED FPS ARENA", titleStyle);
-    // Buttons
-    if (GUI.Button(new Rect(panel.x + 50, panel.y + 20, 120, 40), "Play", btnStyle))
-    {
-      SceneManager.LoadScene("GameScene");
-    }
-    if (GUI.Button(new Rect(panel.x + 250, panel.y + 20, 120, 40), "Settings", btnStyle))
-    {
-      // TODO: integrate with a settings window
-    }
-    if (GUI.Button(new Rect(panel.x + 50, panel.y + 110, 120, 40), "Exit", btnStyle))
-    {
-      #if UNITY_EDITOR
-      UnityEditor.EditorApplication.isPlaying = false;
-      #else
-      Application.Quit();
-      #endif
-    }
+  function createCharacterModel(team){
+    const group = new THREE.Group();
+    const color = team===0 ? 0x2b6bd3 : 0x8b0000;
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.6,1.0,0.3), new THREE.MeshStandardMaterial({color})); torso.position.y = 0.5; group.add(torso);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.22,12,12), new THREE.MeshStandardMaterial({color:0xffd8b4})); head.position.y = 1.15; group.add(head);
+    const helmet = new THREE.Mesh(new THREE.BoxGeometry(0.66,0.25,0.66), new THREE.MeshStandardMaterial({color:0x111111})); helmet.position.y = 1.4; group.add(helmet);
+    const lArm = new THREE.Mesh(new THREE.BoxGeometry(0.14,0.8,0.14), new THREE.MeshStandardMaterial({color})); lArm.position.set(-0.54,0.75,0);
+    const rArm = lArm.clone(); rArm.position.set(0.54,0.75,0);
+    const lLeg = new THREE.Mesh(new THREE.BoxGeometry(0.2,0.9,0.2), new THREE.MeshStandardMaterial({color:0x333333})); lLeg.position.set(-0.18,-0.05,0);
+    const rLeg = lLeg.clone(); rLeg.position.set(0.18,-0.05,0);
+    const leftArmPivot = new THREE.Group(); leftArmPivot.position.set(-0.54,0.75,0); leftArmPivot.add(lArm);
+    const rightArmPivot = new THREE.Group(); rightArmPivot.position.set(0.54,0.75,0); rightArmPivot.add(rArm);
+    group.add(leftArmPivot); group.add(rightArmPivot); group.add(lLeg); group.add(rLeg);
+    group.userData = { team, animTime:0, joints: { torso, head, helmet, leftArm: lArm, rightArm: rArm, leftLeg: lLeg, rightLeg: rLeg, leftArmPivot, rightArmPivot } };
+    return group;
   }
-}
-  </script>
+
+  // Init & overlay
+  initScene();
+  // Show main menu
+  document.getElementById('playFFA').addEventListener('click', ()=>{ startMode('FFA'); });
+  document.getElementById('playDuel').addEventListener('click', ()=>{ startMode('DUEL'); });
+  document.getElementById('openSettings').addEventListener('click', ()=>{ /* show settings */ });
+  document.getElementById('openFriends').addEventListener('click', ()=>{ /* show friends */ });
+
+  // Start render loop
+  function renderLoop(){
+    requestAnimationFrame(renderLoop);
+    // cadence: auto-fire could be added here
+    if (renderer && scene && camera) renderer.render(scene, camera);
+  }
+  renderLoop();
+
+  // Expose a ready-made client script layout via this single file
+</script>
 </body>
 </html>
